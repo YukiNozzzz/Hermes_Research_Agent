@@ -143,7 +143,7 @@ def sync_permissions(registry, command, profile, apply=False):
     registry.user(profile, home)
     # The administrator registry owns the exact native home binding. Windows MSIX
     # and non-virtualized profiles can legitimately coexist under different roots.
-    require(home.name == profile and (home / "config.yaml").is_file(),
+    require((profile == "default" or home.name == profile) and (home / "config.yaml").is_file(),
             "IDENTITY_DENIED", "Registered native profile home is invalid.")
     result = configure_profile(home, registry.config.data_root, user["kind"], apply=apply)
     migrated = registry.normalize_members(user["user_id"]) if apply else 0
@@ -153,6 +153,9 @@ def sync_permissions(registry, command, profile, apply=False):
 
 def provision(registry,command,source,user_id,profile,kind="user",resume=False):
     identifier(user_id);identifier(profile)
+    policy=registry.single_user()
+    require(not policy or user_id in {policy["owner_id"],policy["service_id"]},
+            "SINGLE_USER_ONLY","Extra profile creation is disabled; use setup to select the one personal identity.")
     existing=[u for u in registry.inspect()["users"] if u["profile"]==profile or u["user_id"]==user_id]
     if existing:
         require(len(existing)==1 and existing[0]["profile"]==profile and existing[0]["user_id"]==user_id and existing[0]["kind"]==kind,"IDENTITY_CONFLICT","User/profile is already bound differently.")
@@ -180,6 +183,7 @@ def provision(registry,command,source,user_id,profile,kind="user",resume=False):
 def doctor(registry,command,profile):
     user=next((u for u in registry.inspect()["users"] if u["profile"]==profile),None)
     require(user,"NOT_FOUND","Profile is not registered.")
+    registry.user(profile, user["home"])
     config=read_yaml(Path(user["home"])/"config.yaml")
     issues=[]
     kind=user["kind"]
@@ -201,22 +205,31 @@ def doctor(registry,command,profile):
         if config.get("memory",{}).get("memory_enabled",True) or config.get("memory",{}).get("user_profile_enabled",True):
             issues.append("Service automatic personal memory must be disabled.")
     home=Path(user["home"])
-    if command.root.resolve()!=home.parent.parent.resolve():
-        command=HermesCommand(home.parent.parent,command.python,command.source)
+    native_root=home if profile=="default" else home.parent.parent
+    if command.root.resolve()!=native_root.resolve():
+        command=HermesCommand(native_root,command.python,command.source)
     result=command.run("-p",profile,"plugins","doctor","research-ideation","--ci")
     return {"profile":profile,"kind":kind,"configuration_ok":not issues,"issues":issues,"plugin_doctor":result,
-            "deployment_boundary":"Trusted internal user with full tools, or restricted background service. Profiles separate sessions, not OS/file permissions. Messaging ingress still requires certification."}
+            "mode":"single-user",
+            "deployment_boundary":"One selected personal user with native tools; an optional legacy collector may remain. No OS sandbox. Messaging ingress still requires certification."}
 
 
 def schedule(registry,command,profile,project_id,source):
-    user=next((u for u in registry.inspect()["users"] if u["profile"]==profile and u["kind"]=="service" and u["active"]),None)
-    require(user,"ACCESS_DENIED","Use a registered service profile.")
-    require(registry.member(user["user_id"],project_id)=="service","ACCESS_DENIED","Service is not assigned to this project.")
+    user=registry.current(profile)
+    registry.member(user["user_id"],project_id)
     project=registry.project(project_id)
     home=Path(user["home"])
-    require(read_yaml(home/"config.yaml").get("timezone")==project["timezone"],"TIMEZONE_CONFLICT","Service profile timezone must match the project schedule.")
+    native_root=home if profile=="default" else home.parent.parent
+    if command.root.resolve()!=native_root.resolve():
+        command=HermesCommand(native_root,command.python,command.source)
+    require(read_yaml(home/"config.yaml").get("timezone")==project["timezone"],"TIMEZONE_CONFLICT","The collector profile timezone must match the project schedule.")
     existing=registry.schedule_for(project_id)
     if existing:
+        jobs_path=home/"cron"/"jobs.json"
+        require(jobs_path.is_file(),"SCHEDULE_PROFILE_CONFLICT","An existing schedule belongs to another profile or needs native inspection. Keep its original collector; do not create a duplicate.")
+        jobs=json.loads(jobs_path.read_text(encoding="utf-8"))
+        jobs=jobs.get("jobs",[]) if isinstance(jobs,dict) else jobs
+        require(any(job.get("id")==existing["job_id"] for job in jobs),"SCHEDULE_PROFILE_CONFLICT","The recorded job is not in this profile. Inspect the original cron before changing its identity.")
         return {"job_id":existing["job_id"],"already_registered":True,"note":"Use Hermes cron list to inspect whether an administrator changed or removed the job."}
     script=home/"scripts"/("research_update_"+identifier(project_id)+".py")
     script.parent.mkdir(parents=True,exist_ok=True)

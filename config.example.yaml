@@ -1,6 +1,6 @@
-# Merge into EACH registered profile's config.yaml. Use the server's absolute data_root.
+# Merge into the selected personal Hermes profile. Use the server's absolute data_root.
 # Linux example below; Windows local example: E:/harness/research-data.
-# Normally the administrator user-add command writes these settings automatically.
+# Normally the setup command writes these settings automatically.
 # CRA shared context is configured separately by shared-bind; see ALIGNMENT.md.
 # Never put database credentials in model-facing plugin settings.
 plugins:
@@ -11,8 +11,8 @@ plugins:
       settings:
         data_root: /srv/research-data
 
-# Trusted internal user: native interactive tools plus research and skills.
-# Background service profiles use config.service.example.yaml instead.
+# Single personal user: native interactive tools plus research and skills.
+# A separate background profile is optional, for reusing an existing collector.
 platform_toolsets:
   cli:
     - hermes-cli

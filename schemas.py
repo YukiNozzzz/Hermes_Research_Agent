@@ -7,7 +7,7 @@ def schema(name,description,properties,required=()):
 
 
 TEXT={"type":"string"}
-PROJECT={"project_id":{"type":"string","description":"A project you belong to; omit only if your membership is unambiguous."}}
+PROJECT={"project_id":{"type":"string","description":"Omit to use the single user's configured default project; specify another project only if already registered."}}
 REF={"type":"object","properties":{"id":TEXT,"version":{"type":"integer"},"quote":TEXT},"required":["id","version"],"additionalProperties":False}
 REFS={"type":"array","items":REF,"maxItems":50}
 CANDIDATE={"type":"object","properties":{**{k:TEXT for k in ("title","hypothesis","method","related_work","experiment","risks")},"refs":REFS},
@@ -33,6 +33,6 @@ schema("research_publish","Only when the user explicitly asks: publish their own
        {**PROJECT,"record_id":TEXT,"version":{"type":"integer"},"action":{"type":"string","enum":["publish","withdraw"]}},["record_id","version","action"]),
 schema("research_feedback","Append the user's evaluation or real experimental outcome to an idea. Preserve reasons and provenance. Feedback is private initially; publish separately if requested.",
        {**PROJECT,"idea_id":TEXT,"evaluation":{"type":"string","enum":["accepted","rejected","needs_revision","testing","supported","not_supported"]},"reason":TEXT},["idea_id","evaluation","reason"]),
-schema("research_update_papers","Service-profile only: fetch actual recent arXiv metadata/abstracts once per project per day, deduplicate and persist a shared update. Failure is not zero new papers. Regular users query existing paper/update records instead.",
+schema("research_update_papers","Fetch actual recent arXiv metadata/abstracts as the selected single user or its optional collector. Deduplicate and persist once per project/day. Run when the user requests an update or a scheduled workflow requires it; failure is not zero new papers.",
        {**PROJECT,"lookback_days":{"type":"integer","minimum":1,"maximum":365},"force":{"type":"boolean"}}),
 ]

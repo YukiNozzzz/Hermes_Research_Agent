@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-research-ideation"
-version = "0.3.0"
-description = "Profile-scoped project memory, paper updates and research ideation for Hermes."
+version = "0.4.0"
+description = "Single-user project memory, paper updates and research ideation for Hermes."
 requires-python = ">=3.11"
 dependencies = []
 

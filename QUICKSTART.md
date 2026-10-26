@@ -1,81 +1,83 @@
-# MVP 使用说明
+# 单用户使用说明
 
-0.3.0 使用两种身份：内部 user 开放 Hermes 原生常用工具与研究工具，service 仅执行后台流程。已有 profile 请先按 [权限升级](PERMISSIONS.md) 执行 permissions-sync --all --apply 并开启新会话；不会自动复制其他人的凭据或会话。
+0.4.0 优先完成一个人的研究闭环。你可以直接使用 Hermes 默认 Home，也可以选择已有个人 profile。后台论文采集默认由同一个 profile 执行；升级旧部署时可以继续复用已有 service。
 
-当前实现：按 profile 的个人 / 项目记忆、权限检查、arXiv 更新、真实 Hermes 问题探索与结果保存、反馈、明确发布 / 撤回。
-微信只提供绑定和路由规划接口，实际消息入口默认关闭。没有独立 Deep Research。
+## 本机从已有版本升级
 
-本文主要描述 Windows 本机验收环境。Linux 首次测试请使用 [部署步骤](deploy/README.md)，重新创建服务器运行配置、profile 和任务。0.2.0 已对接 CRA PostgreSQL 共享上下文；私有内容和运行状态仍在 SQLite，绑定、审核和迁移方式见 [对齐说明](ALIGNMENT.md)。
-
-## 已配置的研究项目
-
-- 项目 ID：persona-preference。
-- 方向：人设对话领域如何对齐用户偏好。
-- 更新：每天 10:00，Asia/Shanghai。
-- 历史实验、个人经验、资源限制和数据集尚未提供，系统不会编造。
-
-本机管理员配置在 E:\harness\research-data\control\runtime.json。
-它保存真实 Hermes root、Python 和源码位置，不含 API Key。业务数据不保存在插件源码中。
-
-## Windows 入口
+在 E:\harness\research-ideation 运行：
 
 ```powershell
-cd E:\harness\research-ideation
-.\run.ps1 -Profile research-alice
-# 在另一个终端切换另一个验收用户
-.\run.ps1 -Profile research-bob
+.\run.ps1 -Mode admin -Arguments @('inspect')
+.\run.ps1 -Mode admin -Arguments @('setup','--profile','research-me','--project','persona-preference')
+.\run.ps1 -Mode admin -Arguments @('current')
+.\run.ps1
 ```
 
-research-alice / research-bob 是功能验收身份，不是已经绑定的真实微信用户。本机这两个 profile 已配置现有网关并通过真实模型调用；凭据只保存在各自 profile 的私有配置中。
-以后新增 profile 时需要配置模型网关；管理员工具不会自动克隆他人的 .env。
-启动后明确输入：
+research-me 是个人 profile 示例。选择你已有资料所属的真实 profile，不要为了改名新建一个用户。setup 会保留它原来的 user_id 和 Home；Alice / Bob 等历史验收身份仍留在登记库和磁盘上，但不再作为并行用户调用研究插件。
 
-> 加载 research-ideation:project-assistant，看看 persona-preference 项目当前的目标、已做工作和未解决问题。
+setup 在升级选择前用 SQLite backup 备份登记库；修改 profile 配置前另存 config.yaml 备份。重复运行不会重复创建用户，也不自动建立新 cron。若旧项目只有一个已登记 service，默认保留它，普通聊天仍使用本人。
 
-> 这是我的个人经验，请只记录为私有：……
+setup 将采集所用 profile 的时区与项目一致，默认 Asia/Shanghai；个人 profile 也按默认项目时区配置，原配置会备份。
 
-> 针对角色设定与用户偏好冲突的问题，加载 research-ideation:problem-exploration，结合已有资料提出一个可验证的方案，并保存研究结果。
-
-> 我试过刚才的方案，结果是……。请把这个反馈关联到对应 idea。
-
-> 请将这条我自己的记录分享给整个项目。
-
-共享资料引用私有来源时会被拒绝；需要先处理来源授权，或用共享材料重新研究。
-
-## 管理与检查
+如果你准备改用 Hermes 默认 Home：
 
 ```powershell
-.\run.ps1 -Mode admin -Arguments @('permissions-sync','--all')
-.\run.ps1 -Mode admin -Arguments @('permissions-sync','--all','--apply')
-.\run.ps1 -Mode admin -Arguments @('doctor','--profile','research-alice')
-.\run.ps1 -Mode admin -Arguments @('snapshot','--profile','research-bob','--project','persona-preference')
-.\run.ps1 -Mode admin -Arguments @('update','--profile','research-service','--project','persona-preference')
-.\run.ps1 -Mode admin -Arguments @('schedule','--profile','research-service','--project','persona-preference')
+.\run.ps1 -Mode admin -Arguments @('setup','--profile','default','--project','persona-preference')
 ```
 
-permissions-sync 两行用于从旧权限策略升级：第一行预览，核对后执行第二行。应用时备份原 config.yaml；用户的原生工具和个人记忆恢复，服务继续受限。已有本机 profile 若已升级，再次预览应显示 changed=false。之后开启新会话，不需要重建原有定时任务。Linux 的完整升级顺序见 [部署说明](deploy/README.md#已有服务器升级至-030)。
+这会选择默认 Home 自己的记录，不会把 research-me 或 Alice 的私人资料自动搬进去。已有私人记录应继续使用其原 profile。
 
-本机默认 minted hermes.exe 在 Codex 环境报依赖锁缺失时，run.ps1 可显式使用已配置的可用 runtime/source。
-该方式不跳过依赖校验、不改变全局 sticky profile。Hermes 更新导致路径失效时需管理员更新 runtime.json。
+## 聊天
 
-本机已配置每天 10:00（Asia/Shanghai）的论文更新任务。每天执行依赖服务器或本机保持 Hermes scheduler/gateway 运行；当前状态以原生 cron list 为准。
-默认项目抓取是 no-agent 脚本，不调用模型；用户主动探索才调用模型。
+```powershell
+.\run.ps1
+```
 
-## 文件在哪里
+脚本读取当前选择，不再固定打开 research-alice。模型配置保存在选定 Home；没有替你配置模型或复制其他 profile 的 .env。
 
-- 源码：E:\harness\research-ideation。
-- 共享项目记录：数据根目录下 projects/persona-preference。
-- 个人记录：对应真实 profile 下 plugin-data/research-ideation/records.sqlite。
-- 个人研究报告：该 profile 下 plugin-data/research-ideation/reports/<task_id>。
-- 用户映射、成员关系：数据根目录下 control/registry.sqlite，只由管理员 CLI 修改。
+建议从这些对话开始：
 
-## Linux 与未来微信
+> 加载 research-ideation:project-assistant，告诉我项目目标、之前做过什么，还有哪些未解决问题。
 
-完整部署步骤见 deploy/README.md。迁移源码和需要保留的数据，重新配置真实 profile 路径，不能复制 Windows Python 环境。
-聊天接入前必须完成可信账号绑定、宿主命令限制、接入元数据认证和真实错发测试；当前不能直接向不可信聊天用户开放宿主权限。
+> 记录我的个人经验：……。
 
-## 相关文档
+> 针对这个难点，加载 research-ideation:problem-exploration。先查已有材料，再提出可验证的 idea，并保存依据、风险和实验方案。
 
-- [README.md](README.md)：功能和当前项目结构。
-- [ALIGNMENT.md](ALIGNMENT.md)：共享数据库、记录审核和数据迁移。
-- [deploy/README.md](deploy/README.md)：Linux 部署与运行配置。
+> 我验证后的结果是……，请记录为这个 idea 的反馈。
+
+> 抓取一次最新相关论文，再告诉我新增了哪些内容。
+
+工具可以省略 project_id，默认项目来自 setup。不会编造尚未提供的历史实验或人脑经验。idea 流程仍要求读取实际证据，资料不足时允许保存“暂无候选”。
+
+## 常用管理命令
+
+```powershell
+.\run.ps1 -Mode admin -Arguments @('doctor')
+.\run.ps1 -Mode admin -Arguments @('snapshot')
+.\run.ps1 -Mode admin -Arguments @('update')
+.\run.ps1 -Mode admin -Arguments @('schedule')
+.\run.ps1 -Mode admin -Arguments @('shared-check')
+```
+
+update 真实访问 arXiv，同一项目、日期和检索词去重；失败不会伪装成没有新论文。schedule 默认创建不调用模型的采集脚本，时间来自项目设置。
+
+schedule 不会自动启动 gateway，也不会证明每天 10:00 已经运行。使用实际 Hermes 安装的 cron list / gateway 管理方式检查。若旧任务不属于当前选择，命令会提示冲突，不偷偷再建一份。
+
+## 导入和审核
+
+```powershell
+.\run.ps1 -Mode admin -Arguments @('import-json','--file','E:/my-notes.json')
+.\run.ps1 -Mode admin -Arguments @('review','--record','实际记录编号','--version','1','--status','confirmed')
+```
+
+私有是默认范围，--shared 才导入项目资料。结构化记录和 sources 的格式见 [存储说明](ALIGNMENT.md)。人工确认仍不注册为模型工具。
+
+## 模型环境与路径
+
+control/runtime.json 保存实际 Hermes root、Python 和源码位置。run.ps1 使用这些路径；当前 profile 可以处于另一个合法 Hermes root，脚本按其实际 Home 启动，兼容 Windows MSIX 路径差异。
+
+新会话才会重新加载工具和技能。当前旧聊天不会因源码更新自动改成单用户会话。
+
+如果 Hermes 自身提示 install out of sync、Node 或 uv.lock 依赖不同步，需要修复对应 Hermes 安装；插件 doctor 的导入通过不等于该安装的完整聊天环境已经正常。不要关闭依赖校验来绕过。
+
+Linux 新部署见 [部署说明](deploy/README.md)，不要把 Windows 虚拟环境、junction 或 runtime.json 直接复制过去。

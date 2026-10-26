@@ -1,48 +1,50 @@
-# 内部使用的两种运行身份
+# 单用户身份与工具权限
 
-从 0.3.0 起，只保留 user（可信内部用户）与 service（后台 cron 服务）。每个内部用户仍有独立 Hermes profile、原生会话和个人工作状态。同项目内部成员权限相同，不再区分 owner / editor / reader。
+0.4.0 当前只服务一个研究者，不要求搭建 Docker、执行沙箱或多用户账号体系。研究者继续使用 Hermes 原生文件、终端、记忆和研究工具，权限受当前操作系统账号约束。
 
-## 能力
+## 当前身份
 
-| 身份 | 工具暴露 | 项目业务权限 |
-| --- | --- | --- |
-| user | hermes-cli 原生交互工具 + research_ideation + skills，保留额外自定义工具集 | 同项目共享记录的读写、审核、发布与撤回；研究工具默认只读写本人的私有区 |
-| service | research_ideation + skills | 项目论文采集与后台流程；不访问私有区，不执行人工审核或远程撤回 |
+setup 在登记库中选定一个 owner_id、默认 project_id，以及可选的旧 service_id。业务 user_id 与历史数据归属保留；owner_id 在此只是“当前研究者”的字段，不是新增一套 owner/editor/reader 权限等级。
 
-hermes-cli 恢复终端、文件、代码、检索、技能等 Hermes 原生常用能力；工具仍受 Hermes 的可用性、凭据、平台和原生操作审批机制约束，不自动连接第三方服务，也不授予系统 root 或数据库超级用户权限。全局 agent.disabled_toolsets 会覆盖工具集配置，所以权限升级会清空这一旧抑制列表。
+- 日常聊天、私人记录、研究任务和审核使用当前个人身份。
+- 本人可以直接触发论文抓取，也可以在同一个 profile 中创建每日采集任务。
+- 旧部署已经使用 service 时可以继续保留。它仍无私人数据区、不能人工审核，普通聊天不会默认切到 service。
+- 多个历史人类用户仍保存在登记库，但研究请求只接受当前选定者。管理员可重新 setup 选择另一个原有身份查看其原有资料，不能据此声称文件已经系统隔离。
 
-内部用户恢复 profile 自身的原生个人记忆，不再强制 creation_nudge_interval=0；保留其他自定义 Skill 设置，不批量安装或复制其他人的私人 Skill。新建普通 profile 不再传 --no-skills，服务 profile 保留该选项。升级现有 profile 不复制默认 profile 的会话、凭据或技能目录。原有模型、密钥引用、额外插件设置和额外工具集保持，后台付费审查不会自动开启。服务端按照原生规则发现插件注册的两个研究 Skill。
+## 一次性选择
 
-## 新建
-
-```bash
-python -m research_ideation.admin --data-root /srv/research-data user-add --id alice --profile research-alice
-python -m research_ideation.admin --data-root /srv/research-data user-add --id paper-service --profile research-service --service
-python -m research_ideation.admin --data-root /srv/research-data member --project persona-preference --user alice
-python -m research_ideation.admin --data-root /srv/research-data member --project persona-preference --user paper-service
+```powershell
+.\run.ps1 -Mode admin -Arguments @('setup','--profile','research-me','--project','persona-preference')
+.\run.ps1 -Mode admin -Arguments @('current')
 ```
 
-member 默认按已登记的身份设置成员类型，也可显式传 --role user 或 --role service。为兼容旧脚本，--role owner / editor / reader 会映射为 user，不再提供不同权限。已有 SQLite 表结构不变，旧角色在每次成员读取时兼容解释为 user；身份与成员类型冲突仍报错。
+也可以选择 default；新安装无需额外命名 profile。已有私人数据不会自动合并进默认 Home，setup 拒绝为已有 profile 改 user_id，防止原数据被误认为别人的记录。
 
-## 升级已有 profile
+新安装不需要 user-add / member。旧命令保留兼容，但在选定用户后不能继续注册额外研究用户。
 
-先预览，再应用：
+## 已有 service 与 cron
 
-```bash
-python -m research_ideation.admin --data-root /srv/research-data permissions-sync --all
-python -m research_ideation.admin --data-root /srv/research-data permissions-sync --all --apply
+setup 默认保留该项目唯一的已登记采集 service。也可用 --service-profile 明确选择。若不再选择旧服务，用 --no-service；这不会停止原 Hermes 网关或删除其 cron，必须先在原生 Hermes 中核对、停止或迁移旧任务。
+
+已有 job_id 继续保留。schedule 在当前采集 profile 找不到原任务时会报 SCHEDULE_PROFILE_CONFLICT，不自动创建重复任务。不要为了消除报错手工删除登记库任务编号；先核对实际 cron。
+
+## 原生能力
+
+个人身份使用 hermes-cli、research_ideation、skills，并开启原生个人记忆。配置合并会保留模型、凭据引用和其他设置，不自动打开付费后台审查。
+
+可选 service 只使用 research_ideation、skills，关闭个人记忆。文件、终端等工具是否可运行，还取决于 Hermes 安装、依赖和服务凭据。
+
+```powershell
+.\run.ps1 -Mode admin -Arguments @('permissions-sync')
+.\run.ps1 -Mode admin -Arguments @('permissions-sync','--all','--apply')
 ```
 
-可用 --profile research-alice 代替 --all，仅升级一个已登记、已启用的 profile。应用时逐个在 profile 内保存 config.yaml.permissions-backup-*，原子替换配置，并把该用户已有成员登记中的旧角色写成 user；已是目标配置时不重复备份。默认预览不写配置或业务数据。备份可能包含私人模型配置，不放进源码仓库。批量应用按 profile 执行，不是跨文件事务；某项失败时已成功项保留，修复后重跑即可。
+第一行默认预览本人；--all 表示本人和已选旧 service，不再遍历全部历史用户。--apply 在 profile 内备份配置，之后开启新会话。
 
-重复执行相同 user-add 也会为已登记的同一身份同步策略；不会把已有 user 改成 service。停用状态和成员撤销不被升级恢复。配置变化后开启新会话；已冻结的工具列表不会在原会话内自动扩展。升级不启动新任务或重启 gateway。
+## 数据和边界
 
-随后运行 doctor。它按 user / service 分别校验，不再因为内部用户具有文件、终端或个人记忆能力而报错；服务 profile 意外暴露其他工具集仍报异常。
+私人 / 项目范围和人工审核继续保留，避免把个人资料自动发布到 PostgreSQL。单用户不代表所有资料都要设成项目共享。
 
-## 信任与数据边界
+当前没有系统沙箱。同一系统账号拥有的文件，Agent 的原生工具可能访问到；这个版本以本人操作自己的服务器为边界。接入第二位用户时应先实施独立运行环境，不直接开放全部历史 profile。
 
-这是可信内部团队的使用模型。完整工具能访问系统账号允许的文件，所以 profile 不是磁盘沙箱，不能承诺不同内部用户之间强隔离。研究工具仍保留本人私有记录过滤、项目成员检查、停用 / 撤销检查、私有来源不可直接公开等边界，减少误操作；这些业务检查不约束用户授权的任意代码执行。
-
-PostgreSQL 的既有项目绑定、草稿 / 确认流程、来源和版本检查继续生效。同项目 user 可管理共同资料，包括其他成员发布的内容。人工字段通过本机 review 入口处理，后台服务不作为人工确认身份。此变更未修改 PostgreSQL 账号、GRANT、RLS 或数据库超级用户权限；严格数据隔离与数据库授权需要另外部署。
-
-未来聊天软件的可信身份认证仍待实现，当前研究工具的非 CLI 入口仍拒绝；开放内部用户工具不等于已经开放微信或其他外部入口。
+真实社交软件入口未实现，当前非 CLI 请求仍拒绝。后续本人聊天入口也需要平台认证和账号白名单。

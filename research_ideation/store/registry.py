@@ -23,6 +23,11 @@ CREATE TABLE IF NOT EXISTS bindings (
  user_id TEXT NOT NULL, PRIMARY KEY(platform,account,tenant,sender), FOREIGN KEY(user_id) REFERENCES users);
 CREATE TABLE IF NOT EXISTS schedules (
  project_id TEXT PRIMARY KEY, job_id TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS single_user (
+ singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+ owner_id TEXT NOT NULL REFERENCES users(user_id),
+ project_id TEXT NOT NULL REFERENCES projects(project_id),
+ service_id TEXT REFERENCES users(user_id));
 """
 
 
@@ -57,8 +62,11 @@ class Registry:
 
     def add_user(self, user_id, profile, home, kind="user"):
         identifier(user_id); identifier(profile)
-        require(profile != "default", "INVALID_PROFILE", "The default profile cannot be a research user.")
         require(kind in {"user", "service"}, "INVALID_INPUT", "Unknown user kind.")
+        policy = self.single_user()
+        require(not policy or user_id == policy["owner_id"] or
+                (kind == "service" and user_id == policy["service_id"]),
+                "SINGLE_USER_ONLY", "Use setup to select the one research user; extra user registration is disabled.")
         home = Path(home).expanduser().resolve()
         require(home.is_dir() and (home / "config.yaml").is_file(), "PROFILE_MISSING", "Create a real Hermes profile first.")
         with self.connection(admin=True) as db:
@@ -68,9 +76,74 @@ class Registry:
         with self.connection() as db:
             row = db.execute("SELECT * FROM users WHERE profile=? AND active=1", (profile,)).fetchone()
         require(row and Path(row["home"]).resolve() == Path(home).resolve(), "IDENTITY_DENIED", "Unregistered, disabled, or mismatched profile.")
+        self.require_selected(row["user_id"])
         return dict(row)
 
+    def single_user(self):
+        """Read old registries without a schema write; setup performs the upgrade."""
+        with self.connection() as db:
+            exists = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='single_user'").fetchone()
+            row = db.execute("SELECT * FROM single_user WHERE singleton=1").fetchone() if exists else None
+        return dict(row) if row else None
+
+    def require_selected(self, user_id):
+        policy = self.single_user()
+        require(policy, "SINGLE_USER_SETUP_REQUIRED", "Run setup --profile <your-profile> --project <your-project> once before research operations.")
+        require(user_id in {policy["owner_id"], policy["service_id"]},
+                "SINGLE_USER_ONLY", "This historical profile is not selected for the single-user application.")
+        return policy
+
+    def selected_users(self):
+        policy = self.single_user()
+        require(policy, "SINGLE_USER_SETUP_REQUIRED", "Run setup to select your research profile and default project.")
+        return [u for u in self.inspect()["users"] if u["active"] and
+                u["user_id"] in {policy["owner_id"], policy["service_id"]}]
+
+    def current(self, profile=None, *, service=False):
+        policy = self.single_user()
+        users = self.selected_users()
+        if profile is None:
+            target = policy["service_id"] if service and policy["service_id"] else policy["owner_id"]
+            user = next((u for u in users if u["user_id"] == target), None)
+        else:
+            user = next((u for u in users if u["profile"] == profile), None)
+        require(user, "IDENTITY_DENIED", "The requested identity is disabled or is not selected.")
+        self.user(user["profile"], user["home"])
+        return {**user, "project_id": policy["project_id"], "mode": "single-user"}
+
+    def select_single_user(self, profile, home, project_id, user_id=None, service=None):
+        """Administrator selection; preserve all legacy users, files and ownership IDs."""
+        identifier(profile); identifier(project_id)
+        home = str(Path(home).expanduser().resolve())
+        require((Path(home) / "config.yaml").is_file(), "PROFILE_MISSING", "Configure Hermes first.")
+        with self.connection(admin=True) as db:
+            require(db.execute("SELECT 1 FROM projects WHERE project_id=?", (project_id,)).fetchone(), "NOT_FOUND", "Project not found.")
+            existing = db.execute("SELECT * FROM users WHERE profile=? OR home=?", (profile, home)).fetchall()
+            if existing:
+                require(len(existing) == 1, "IDENTITY_CONFLICT", "Profile and home belong to different registrations.")
+                owner = existing[0]
+                require(owner["profile"] == profile and Path(owner["home"]).resolve() == Path(home) and owner["kind"] == "user" and owner["active"],
+                        "IDENTITY_CONFLICT", "Use the existing active personal profile binding.")
+                require(user_id is None or user_id == owner["user_id"], "IDENTITY_CONFLICT", "Keep the original user ID to preserve private record ownership.")
+                user_id = owner["user_id"]
+            else:
+                user_id = identifier(user_id or "local-user")
+                require(not db.execute("SELECT 1 FROM users WHERE user_id=?", (user_id,)).fetchone(), "IDENTITY_CONFLICT", "User ID is already registered; select its original profile.")
+                db.execute("INSERT INTO users VALUES (?,?,?,'user',1)", (user_id, profile, home))
+            service_id = None
+            if service:
+                row = db.execute("SELECT * FROM users WHERE profile=? AND kind='service' AND active=1", (service,)).fetchone()
+                require(row and row["profile"] != profile, "INVALID_SERVICE", "Select an existing active service profile, or omit --service-profile.")
+                service_id = row["user_id"]
+            for selected, role in ((user_id, "user"), (service_id, "service")):
+                if selected:
+                    db.execute("INSERT INTO members VALUES(?,?,?) ON CONFLICT(project_id,user_id) DO UPDATE SET role=excluded.role", (project_id, selected, role))
+            db.execute("INSERT INTO single_user VALUES(1,?,?,?) ON CONFLICT(singleton) DO UPDATE SET owner_id=excluded.owner_id,project_id=excluded.project_id,service_id=excluded.service_id",
+                       (user_id, project_id, service_id))
+        return self.current()
+
     def member(self, user_id, project_id):
+        self.require_selected(user_id)
         with self.connection() as db:
             row = db.execute("SELECT m.role,u.kind FROM members m JOIN users u USING(user_id) WHERE m.user_id=? AND m.project_id=? AND u.active=1", (user_id, project_id)).fetchone()
         require(row, "ACCESS_DENIED", "No active membership for this project.")

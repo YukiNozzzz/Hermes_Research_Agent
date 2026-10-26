@@ -1,4 +1,4 @@
-# Background cron service only. user-add --service writes the actual data_root.
+# Optional legacy collector only. Fresh single-user installs do not need this profile.
 plugins:
   enabled:
     - research-ideation

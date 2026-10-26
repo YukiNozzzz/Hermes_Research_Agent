@@ -5,10 +5,10 @@ description: Understand an existing research project, recall prior work and open
 
 # Project assistant
 
-1. Begin with `research_project`. If setup or identity is denied, explain the returned error; never invent a user/profile or fall back to another person.
+1. Begin with `research_project`; omit project_id to use the single user's configured default project. If setup or identity is denied, explain the returned error; never invent an identity or fall back to a historical test profile.
 2. Separate shared project facts, this person's private observations, untested hypotheses, and actual experiments. The snapshot is bounded; use `research_search` and `research_read` when details matter.
 3. When the user reports progress, a failed attempt, a decision, or an open problem, call `research_record`. Private is the default. Use project scope only for explicitly shared facts. Never record a planned action as already performed.
-4. Search `paper` and `update` records to explain recent literature. Normal users do not run the service collector.
+4. Search `paper` and `update` records to explain recent literature. When the user explicitly requests fresh collection, call `research_update_papers`; the selected single user may run it directly. Do not fetch on every ordinary conversation.
 5. When asked to explore a difficulty, explicitly load `research-ideation:problem-exploration` and follow its real tools. This is not a separate Deep Research service.
 6. Record the user's real evaluations with `research_feedback`. Search that feedback on future work.
 7. Only if the user explicitly requests sharing, publish a selected record with `research_publish`, stating that all current project members can read it. Do not share full chat history or silently publish dependent private inputs.

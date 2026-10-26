@@ -1,6 +1,6 @@
 # 与 character-research-agent 的上下文库对齐
 
-版本：0.3.0，2026-10-26。权限模型见 [PERMISSIONS.md](PERMISSIONS.md)：同项目内部用户权限相同，后台服务仅执行受限流程。此版本不修改 PostgreSQL 角色授权。
+版本：0.4.0，2026-10-26。当前是单用户应用，命令默认使用 setup 选定的本人和项目；可复用旧采集 service。权限与迁移见 [PERMISSIONS.md](PERMISSIONS.md)，本次不修改 PostgreSQL 角色授权。
 
 当前实现是混合存储：CRA PostgreSQL 提供共享、已确认的研究知识；本地 SQLite 保留用户私有记录、研究任务和采集状态。显式发布的结构化研究记录写入同一 PostgreSQL，初始状态为 draft。没有复制另一套同名但字段不兼容的远程 records 表。
 
@@ -39,7 +39,7 @@ python -m research_ideation.admin --data-root /srv/research-data shared-bind \
   --repository /srv/character-research-agent \
   --env-file /srv/character-research-agent/.env
 python -m research_ideation.admin --data-root /srv/research-data shared-check \
-  --profile research-alice --project persona-preference
+  --project persona-preference
 ```
 
 以上 python 使用部署文档中已核对的 Hermes 解释器；shared-bind 的 --python 则是装有 CRA 依赖的解释器。桥接复用 CRA 环境，不改变 Hermes 托管环境依赖。数据库地址或凭据只在 .env 中配置，不经模型参数传递。
@@ -69,9 +69,9 @@ python -m research_ideation.admin --data-root /srv/research-data shared-check \
 本机命令：
 
 ```powershell
-.\run.ps1 -Mode admin -Arguments @('shared-check','--profile','research-alice','--project','persona-preference')
-.\run.ps1 -Mode admin -Arguments @('import-json','--profile','research-alice','--project','persona-preference','--file','E:/my-notes.json')
-.\run.ps1 -Mode admin -Arguments @('review','--profile','research-alice','--project','persona-preference','--record','<本地记录编号>','--version','1','--status','confirmed')
+.\run.ps1 -Mode admin -Arguments @('shared-check')
+.\run.ps1 -Mode admin -Arguments @('import-json','--file','E:/my-notes.json')
+.\run.ps1 -Mode admin -Arguments @('review','--record','<本地记录编号>','--version','1','--status','confirmed')
 ```
 
 import-json 支持 JSON / JSONL、每批最多 100 条 / 10 MB，按一个可见范围原子写入草稿；已有编号不覆盖。默认 private，--shared 才写本地项目区。支持 sources 的 ref 或 uri、结构化 fields 或 CRA 风格顶层字段；引用必须先存在，并使用 research_read 实际返回的编号 / 版本，暂不支持同批次前向引用。

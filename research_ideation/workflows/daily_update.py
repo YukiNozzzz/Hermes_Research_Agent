@@ -9,7 +9,8 @@ from ..storage import Store,public_record
 
 
 def update(registry,ctx,lookback_days=30,force=False):
-    require(ctx.role=="service","ACCESS_DENIED","Only the registered service profile performs shared paper collection.")
+    policy=registry.require_selected(ctx.user_id)
+    require(ctx.role=="service" or ctx.user_id==policy["owner_id"],"ACCESS_DENIED","Use the selected research user or its configured service for paper collection.")
     require(type(lookback_days) is int and 1<=lookback_days<=365,"INVALID_INPUT","lookback_days must be 1..365.")
     project=registry.project(ctx.project_id)
     from zoneinfo import ZoneInfo
