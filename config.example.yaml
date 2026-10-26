@@ -1,0 +1,27 @@
+# Merge into EACH registered profile's config.yaml. Use an absolute data_root.
+plugins:
+  enabled:
+    - research-ideation
+  entries:
+    research-ideation:
+      settings:
+        data_root: E:/harness/research-data
+
+# Restricted research profile: no unrestricted terminal/files/code/plugin management.
+platform_toolsets:
+  cli:
+    - research_ideation
+    - skills
+  default:
+    - research_ideation
+    - skills
+
+memory:
+  memory_enabled: false
+  user_profile_enabled: false
+
+auxiliary:
+  background_review:
+    enabled: false
+
+timezone: Asia/Shanghai

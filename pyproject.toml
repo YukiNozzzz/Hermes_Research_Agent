@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hermes-research-ideation"
+version = "0.1.0"
+description = "Profile-scoped project memory, paper updates and research ideation for Hermes."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+research-admin = "research_ideation.admin:main"
+
+[tool.setuptools.packages.find]
+include = ["research_ideation*"]
