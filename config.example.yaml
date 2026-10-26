@@ -1,11 +1,15 @@
-# Merge into EACH registered profile's config.yaml. Use an absolute data_root.
+# Merge into EACH registered profile's config.yaml. Use the server's absolute data_root.
+# Linux example below; Windows local example: E:/harness/research-data.
+# Normally the administrator user-add command writes these settings automatically.
+# CRA shared context is configured separately by shared-bind; see ALIGNMENT.md.
+# Never put database credentials in model-facing plugin settings.
 plugins:
   enabled:
     - research-ideation
   entries:
     research-ideation:
       settings:
-        data_root: E:/harness/research-data
+        data_root: /srv/research-data
 
 # Restricted research profile: no unrestricted terminal/files/code/plugin management.
 platform_toolsets:

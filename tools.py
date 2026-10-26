@@ -30,7 +30,7 @@ def make_handler(name,runtime,parameters):
             return json.dumps({"ok":True,"data":data,"error":None},ensure_ascii=False)
         except ResearchError as exc:
             return json.dumps({"ok":False,"data":None,"error":{"code":exc.code,"message":str(exc),"retryable":exc.retryable}},ensure_ascii=False)
-        except (TypeError,ValueError,KeyError) as exc:
+        except (TypeError,ValueError,KeyError):
             return json.dumps({"ok":False,"data":None,"error":{"code":"INVALID_INPUT","message":"Invalid argument type or value.","retryable":False}})
         except Exception as exc:
             # Do not echo filesystem paths, credentials or cross-profile exception contents to the model.

@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('chat','admin','tests')][string]$Mode = 'chat',
+    [ValidateSet('chat','admin')][string]$Mode = 'chat',
     [string]$Profile = 'research-alice',
     [string]$DataRoot = (Join-Path (Split-Path $PSScriptRoot -Parent) 'research-data'),
     [string[]]$Arguments = @()
@@ -22,8 +22,6 @@ try {
             Set-Location -LiteralPath $taskRuntime.hermes_source
         }
         & $taskRuntime.hermes_python -X utf8 -B -m hermes_cli.main -p $Profile chat @Arguments
-    } elseif ($Mode -eq 'tests') {
-        & $taskRuntime.hermes_python -X utf8 -B -m unittest discover -s tests -v
     } else {
         & $taskRuntime.hermes_python -X utf8 -B -m research_ideation.admin --data-root $DataRoot @Arguments
     }

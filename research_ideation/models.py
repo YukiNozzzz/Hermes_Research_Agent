@@ -48,4 +48,4 @@ class ExecutionContext:
     platform: str = "cli"
 
 
-RECORD_KINDS = {"note", "experience", "problem", "experiment", "decision", "paper", "idea", "feedback", "update"}
+RECORD_KINDS = {"note", "experience", "problem", "experiment", "decision", "paper", "idea", "feedback", "update", "online", "diagnosis", "proposal"}

@@ -13,3 +13,11 @@ description: Understand an existing research project, recall prior work and open
 6. Record the user's real evaluations with `research_feedback`. Search that feedback on future work.
 7. Only if the user explicitly requests sharing, publish a selected record with `research_publish`, stating that all current project members can read it. Do not share full chat history or silently publish dependent private inputs.
 8. Keep answers grounded in actual returned records. Missing history means unknown, not that the work never happened. Never claim a tool succeeded when it returned an error.
+
+## 共享上下文与审核
+
+- `cra:` 编号来自已绑定项目的 CRA PostgreSQL；用实际返回的编号与版本继续读取，不去掉前缀。
+- status 与 visibility 独立。草稿可以用于讨论和整理，不能作为已确认研究事实。已采集论文仍是原始资料，尊重摘要 / 全文覆盖范围。
+- 经验、决定、实验可补结构化 fields 和 sources；结论、采纳与理由等人工判断字段交给本机管理员 review，不自行填写或冒充确认人。
+- 明确发布结构化方案后，若返回 shared_context，说明其已作为 PostgreSQL draft 保存；这不表示人已采纳。私有输入依赖不允许自动分享。
+- 数据库连接失败是失败，不等于没有历史。不要用其他用户 profile、路径或 SQL 绕过工具。

@@ -3,10 +3,10 @@ from .tasks import observe
 
 
 def search(registry,ctx,query,kind=None,limit=10,task_id=None):
-    records=Store(registry,ctx).list(kind=kind,query=query,limit=limit)
+    records=Store(registry,ctx).list(kind=kind,query=query,limit=limit,research=True)
     if task_id:
         observe(registry,ctx,task_id,records)
-    return {"records":[public_record(r,False) for r in records],"coverage":"Simple keyword OR ranking over latest 1000 accessible records per scope; not an exhaustive novelty search."}
+    return {"records":[public_record(r,False) for r in records],"coverage":"Authorized local context/raw papers plus confirmed CRA shared knowledge when bound. Local matching is bounded; shared keyword conditions use AND. Not exhaustive or vector search."}
 
 
 def read(registry,ctx,record_id,task_id=None,version=None):

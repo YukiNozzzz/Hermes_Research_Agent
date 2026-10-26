@@ -44,6 +44,19 @@ def parser():
     local.add_argument("--shared",action="store_true")
     auto=sub.add_parser("auto-explore");auto.add_argument("--project",required=True);auto.add_argument("--enabled",choices=["true","false"],required=True)
     sub.add_parser("inspect")
+    shared=sub.add_parser("shared-bind",help="Bind one explicitly shared CRA database to one project")
+    for name in ("project","python","repository","env-file"):shared.add_argument("--"+name,required=True)
+    check=sub.add_parser("shared-check");check.add_argument("--profile",required=True);check.add_argument("--project",required=True)
+    review=sub.add_parser("review",help="Local human review; never registered as an Agent tool")
+    for name in ("profile","project","record"):review.add_argument("--"+name,required=True)
+    review.add_argument("--version",type=int,required=True);review.add_argument("--status",choices=["confirmed","rejected","superseded"],required=True)
+    review.add_argument("--fields-json")
+    structured=sub.add_parser("import-json")
+    for name in ("profile","project","file"):structured.add_argument("--"+name,required=True)
+    structured.add_argument("--shared",action="store_true")
+    export=sub.add_parser("export-shared")
+    for name in ("profile","project","record"):export.add_argument("--"+name,required=True)
+    export.add_argument("--version",type=int,required=True)
     return p
 
 
@@ -72,16 +85,56 @@ def main(argv=None):
         elif args.command=="doctor":data=doctor(registry,command_from(registry),args.profile)
         elif args.command=="schedule":data=schedule(registry,command_from(registry),args.profile,args.project,source)
         elif args.command=="auto-explore":
-            with registry.connection(admin=True) as db:
-                changed=db.execute("UPDATE projects SET auto_explore=? WHERE project_id=?",(int(args.enabled=="true"),args.project)).rowcount
-                require(changed==1,"NOT_FOUND","Project not found.")
+            registry.set_auto_explore(args.project,args.enabled=="true")
             data={"updated":True,"note":"Reconfigure the existing Hermes job to agent mode before enabling automatic ideation; existing schedules are not silently rewritten."}
         elif args.command=="inspect":data=registry.inspect()
+        elif args.command=="shared-bind":
+            registry.project(args.project)
+            path=registry.config.data_root/"control"/"shared-context.json"
+            values={"project_id":args.project,"python":str(Path(args.python).resolve()),"repository":str(Path(args.repository).resolve()),"env_file":str(Path(args.env_file).resolve())}
+            require(Path(values["python"]).is_file() and Path(values["env_file"]).is_file() and (Path(values["repository"])/"src/cra/store/models.py").is_file(),"INVALID_CONFIG","Verify CRA interpreter, repository and env file.")
+            if path.is_file():require(json.loads(path.read_text(encoding="utf-8"))["project_id"]==args.project,"SHARED_CONTEXT_BOUND","The unpartitioned public database is already bound to another project.")
+            path.write_text(json.dumps(values,ensure_ascii=False,indent=2),encoding="utf-8")
+            data={"bound":True,"project_id":args.project,"scope":"One explicitly shared CRA public database; not multi-project isolation."}
         else:
             user=next((u for u in registry.inspect()["users"] if u["profile"]==args.profile),None)
             require(user,"NOT_FOUND","Registered profile not found.")
             ctx=resolve_context(registry,args.profile,user["home"],args.project)
-            if args.command=="snapshot":
+            if args.command=="shared-check":
+                from .store.shared import SharedContext
+                data=SharedContext(registry,ctx).call("check")
+            elif args.command=="review":
+                from .storage import Store,public_record
+                fields=json.loads(Path(args.fields_json).read_text(encoding="utf-8-sig")) if args.fields_json else None
+                data=public_record(Store(registry,ctx).review(args.record,args.version,args.status,fields))
+            elif args.command=="export-shared":
+                from .storage import Store
+                store=Store(registry,ctx);record=store.get(args.record)
+                require(record["version"]==args.version,"VERSION_CONFLICT","Read the current record first.")
+                data=store.export_shared(record)
+            elif args.command=="import-json":
+                from .storage import Store,public_record
+                from .records import TYPE_TO_KIND
+                path=Path(args.file)
+                require(path.stat().st_size<=10_000_000,"INVALID_INPUT","Import file too large.")
+                content=path.read_text(encoding="utf-8-sig")
+                values=[json.loads(line) for line in content.splitlines() if line.strip()] if path.suffix==".jsonl" else json.loads(content)
+                rows=values if isinstance(values,list) else [values]
+                require(1<=len(rows)<=100,"INVALID_INPUT","Import 1..100 records.")
+                store=Store(registry,ctx);items=[]
+                for row in rows:
+                    require(isinstance(row,dict),"INVALID_INPUT","Each record must be an object.")
+                    require(row.get("status","draft")=="draft","HUMAN_REVIEW_REQUIRED","Import drafts, then review explicitly.")
+                    kind=TYPE_TO_KIND.get(row.get("type"),row.get("kind","note"))
+                    sources=[{**{key:value for key,value in s.items() if key in {"kind","sha256","coverage"}},"uri":s.get("uri",s.get("ref","")),"locator":s.get("locator") or ""} for s in row.get("sources",[])]
+                    fields=row.get("fields",{key:value for key,value in row.items() if key not in {"type","kind","id","title","body","status","created_by","sources","refs","links","visibility"}})
+                    refs=list(row.get("refs",[]))
+                    for link in row.get("links",[]):
+                        target=store.get(link["target_id"])
+                        refs.append({"id":target["id"],"version":link.get("version",target["version"]),"quote":link.get("quote","")})
+                    items.append({"kind":kind,"title":row["title"],"body":row.get("body") or row["title"],"visibility":"project" if args.shared else "private","refs":refs,"fields":fields,"sources":sources,"record_id":row.get("id")})
+                data=[public_record(record) for record in store.import_drafts(items)]
+            elif args.command=="snapshot":
                 from .memory import snapshot
                 data=snapshot(registry,ctx)
             elif args.command=="update":

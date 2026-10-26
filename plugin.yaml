@@ -1,5 +1,5 @@
 name: research-ideation
-version: 0.1.0
+version: 0.2.0
 description: "Multi-user project memory, arXiv updates, and evidence-grounded ideation."
 provides_tools:
   - research_project

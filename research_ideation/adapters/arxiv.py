@@ -1,7 +1,5 @@
 """Bounded HTTPS-only arXiv Atom client. No model calls, credentials or arbitrary URLs."""
 
-from datetime import datetime,timezone
-import json
 import time
 import urllib.parse
 import urllib.request
