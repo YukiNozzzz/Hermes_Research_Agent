@@ -1,5 +1,7 @@
 # 部署说明（人话版）
 
+0.3.0 已切换为两种身份：内部 user 可使用完整常用工具，后台 service 受限。全新服务器按下文初始化；已经部署过的服务器只需拉取代码并执行权限升级，不重建 profile 或定时任务。升级命令和验收顺序见 [主部署文档](README.md#已有服务器升级至-030)。
+
 > 逐节对应 [README.md](README.md)。原文是给装服务器的人看的电工手册，这份是给住户看的说明：左边摘一句原文，右边说它到底什么意思、你要做什么。
 
 ## 先把六个词对上号
@@ -69,7 +71,7 @@ registry.sqlite    记的是本机 profile 位置和 job 编号，同上
 init                    建档案室（/srv/research-data/control + projects）
 project-add             挂项目牌子：ID、方向、arXiv 查询式、每天几点
 user-add ×3             建三个分身：alice、bob、paper-service（值班机器人）
-member ×3               发门禁卡：owner / editor / service
+member ×3               登记项目成员：alice、bob 都是 user，paper-service 是 service
 ```
 
 为什么顺序不能乱：`user-add` 会顺手 `hermes profile create` 并启用插件，它还要求档案室已经存在；`member` 又要求人和项目都已经登记。
@@ -102,7 +104,7 @@ member ×3               发门禁卡：owner / editor / service
 
 ## 6. 研究与模型
 
-> 原文：默认研究能力仅 research_ideation、skills，原生长期记忆写回关闭。模型需要配置在各 profile；collect-only 的服务 cron 不需要模型凭据。
+> 原文：内部 user 使用 hermes-cli + research_ideation + skills，保留个人记忆；service 仅保留研究工具与 skills，关闭个人记忆。collect-only 的服务 cron 不需要模型凭据。
 
 人话：抓论文是一段死程序，不经过 AI，所以免费；"想问题"要调模型，才花钱。所以值班分身（只抓论文）不用配大脑，alice 和 bob 要配。
 
@@ -112,18 +114,18 @@ member ×3               发门禁卡：owner / editor / service
 
 ## 7. 多用户隔离
 
-> 原文：Profile 自身不提供磁盘隔离；研究工具白名单之外的原生终端、代码、任意文件、插件管理等能力必须限制。
+> 原文：0.3.0 面向可信内部团队，只分 user / service；内部用户开放完整常用工具，profile 自身不提供磁盘隔离。
 
-人话：门禁挡得住业务，挡不住翻抽屉。三个分身住在同一台机器、同一个系统账号下，文件互相能读。owner/editor 这些角色只对插件自己的操作有效；如果分身还留着"开终端、读写任意文件、跑代码"的手艺，alice 就能让管家去 `cat` bob 的抽屉——门禁形同虚设。
+人话：现在大家是相互信任的内部成员。alice 和 bob 权限相同，都可以研究、改代码和运行测试；值班机器人专心处理后台任务。各人的聊天和个人配置仍然分开保存，但同一个系统账号下，文件可能互相能读，所以不能把 profile 当作锁住的独立房间。
 
-所以部署时对每个用户 profile 做两件事：
+部署时按两种身份配置：
 
 ```
-platform_toolsets   只留 research_ideation + skills（其余工具集对模型不可见）
-memory              关闭原生长期记忆写回
+user       hermes-cli + research_ideation + skills；恢复个人记忆
+service    research_ideation + skills；关闭个人记忆与后台审查
 ```
 
-这是"关掉"，不是"卸载"——插件和工具都还在，只是模型看不见。一条 `tools enable` 就能开回来，所以别在用户 profile 里手动开工具。
+这只调整模型能调用的工具，不卸载插件、不自动安装第三方 Skill，也不让数据库或系统账号变成超级用户。原生工具仍需要相应环境和凭据。已有 profile 使用 permissions-sync --all 预览，再加 --apply 应用；配置会备份，之后开启新会话。详见 [权限说明](../PERMISSIONS.md)。
 
 > 原文：当前插件对非 CLI 的原生消息入口返回 CHANNEL_NOT_CERTIFIED。
 
@@ -131,7 +133,7 @@ memory              关闭原生长期记忆写回
 
 > 原文：管理员 / 同一 OS 账号直接操作文件不在应用级隔离承诺内。
 
-人话：能在这台机器上 `cd` 的人，本来就能看所有文件——这不在插件承诺的保护范围内。要防的是"用户"，不是"管理员"。
+人话：完整工具能访问运行账号本来就有权访问的文件。当前内部使用接受这个信任前提；若以后需要严格区分谁能看哪些文件，需要再做系统和数据库授权。
 
 ---
 
@@ -152,7 +154,7 @@ memory              关闭原生长期记忆写回
 人话：模型说"我做完了"不算数，要去看它到底存了什么。
 
 ```
-doctor --profile X                 配置对不对（工具集白名单、记忆开关、插件能加载）
+doctor --profile X                 按 user / service 检查工具与记忆策略、插件能否加载
 snapshot --profile X --project Y   这个分身视角下，项目里到底有哪些记录
 cron runs <job_id>                 闹钟真跑过没有、状态是什么
 ```

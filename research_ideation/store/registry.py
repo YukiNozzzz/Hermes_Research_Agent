@@ -3,7 +3,7 @@
 from contextlib import contextmanager
 from pathlib import Path
 import sqlite3
-from ..models import identifier, require, now, bounded_text
+from ..models import identifier, require, now, bounded_text, identity_kind
 
 
 SCHEMA = """
@@ -72,9 +72,11 @@ class Registry:
 
     def member(self, user_id, project_id):
         with self.connection() as db:
-            row = db.execute("SELECT m.role FROM members m JOIN users u USING(user_id) WHERE m.user_id=? AND m.project_id=? AND u.active=1", (user_id, project_id)).fetchone()
+            row = db.execute("SELECT m.role,u.kind FROM members m JOIN users u USING(user_id) WHERE m.user_id=? AND m.project_id=? AND u.active=1", (user_id, project_id)).fetchone()
         require(row, "ACCESS_DENIED", "No active membership for this project.")
-        return row["role"]
+        role = identity_kind(row["role"])
+        require(role == row["kind"], "ACCESS_DENIED", "Identity kind and membership differ.")
+        return role
 
     def project(self, project_id):
         identifier(project_id)
@@ -97,12 +99,25 @@ class Registry:
         with self.connection(admin=True) as db:
             db.execute("INSERT INTO projects(project_id,title,brief,query,daily_time,timezone) VALUES(?,?,?,?,?,?)", (project_id,title,brief,query,daily_time,timezone))
 
-    def set_member(self, project_id, user_id, role):
-        require(role in {"owner", "editor", "reader", "service"}, "INVALID_ROLE", "Unknown project role.")
+    def set_member(self, project_id, user_id, role=None):
         with self.connection(admin=True) as db:
             user = db.execute("SELECT kind FROM users WHERE user_id=?", (user_id,)).fetchone()
-            require(user and ((role == "service") == (user["kind"] == "service")), "INVALID_ROLE", "Service roles require a service identity, and vice versa.")
+            require(user, "NOT_FOUND", "User is not registered.")
+            role = identity_kind(role) if role is not None else user["kind"]
+            require(role == user["kind"], "INVALID_ROLE", "Membership must match user/service identity.")
             db.execute("INSERT INTO members VALUES(?,?,?) ON CONFLICT(project_id,user_id) DO UPDATE SET role=excluded.role", (project_id,user_id,role))
+
+    def normalize_members(self, user_id):
+        """管理员显式升级旧登记，撤销状态与项目成员关系保持不变。"""
+        with self.connection(admin=True) as db:
+            user = db.execute("SELECT kind FROM users WHERE user_id=?", (user_id,)).fetchone()
+            require(user, "NOT_FOUND", "User is not registered.")
+            rows = db.execute("SELECT role FROM members WHERE user_id=?", (user_id,)).fetchall()
+            require(all(identity_kind(row["role"]) == user["kind"] for row in rows),
+                    "INVALID_ROLE", "Repair mismatched identities before migrating memberships.")
+            changed = db.execute("UPDATE members SET role=? WHERE user_id=? AND role<>?",
+                                 (user["kind"], user_id, user["kind"])).rowcount
+        return changed
 
     def revoke(self, project_id, user_id):
         with self.connection(admin=True) as db:

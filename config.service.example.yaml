@@ -1,0 +1,32 @@
+# Background cron service only. user-add --service writes the actual data_root.
+plugins:
+  enabled:
+    - research-ideation
+  entries:
+    research-ideation:
+      settings:
+        data_root: /srv/research-data
+
+platform_toolsets:
+  cli:
+    - research_ideation
+    - skills
+  default:
+    - research_ideation
+    - skills
+
+agent:
+  disabled_toolsets: []
+
+memory:
+  memory_enabled: false
+  user_profile_enabled: false
+
+skills:
+  creation_nudge_interval: 0
+
+auxiliary:
+  background_review:
+    enabled: false
+
+timezone: Asia/Shanghai

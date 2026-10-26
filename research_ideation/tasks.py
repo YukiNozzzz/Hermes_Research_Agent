@@ -35,7 +35,7 @@ def start(registry,ctx,question):
 
 def observe(registry,ctx,task_id,records):
     task=get_task(registry,ctx,task_id)
-    require(task["owner_id"]==ctx.user_id or (task["visibility"]=="project" and ctx.role=="owner"),"ACCESS_DENIED","Only the task owner can advance this research.")
+    require(task["owner_id"]==ctx.user_id or (task["visibility"]=="project" and ctx.role=="user"),"ACCESS_DENIED","Only the author or an internal project user can advance this research.")
     require(task["status"]=="running","TASK_CLOSED","Research task is already closed.")
     require(all(task["visibility"]!="project" or r["visibility"]=="project" for r in records),"PRIVATE_DERIVATION","Shared tasks cannot ingest private records.")
     Store(registry,ctx).task_observe(task,records)
@@ -44,7 +44,7 @@ def observe(registry,ctx,task_id,records):
 def finish(registry,ctx,task_id,candidates,review,check_scope,open_questions=""):
     task=get_task(registry,ctx,task_id)
     store=Store(registry,ctx)
-    require(task["owner_id"]==ctx.user_id or (task["visibility"]=="project" and ctx.role=="owner"),"ACCESS_DENIED","Only the task owner can finish this research.")
+    require(task["owner_id"]==ctx.user_id or (task["visibility"]=="project" and ctx.role=="user"),"ACCESS_DENIED","Only the author or an internal project user can finish this research.")
     if task["status"] in {"completed","no_candidate"}:
         return render_saved(store,task)
     require(task["status"]=="running","TASK_CLOSED","Task cannot be finished.")

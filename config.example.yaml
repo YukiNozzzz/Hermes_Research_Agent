@@ -11,18 +11,24 @@ plugins:
       settings:
         data_root: /srv/research-data
 
-# Restricted research profile: no unrestricted terminal/files/code/plugin management.
+# Trusted internal user: native interactive tools plus research and skills.
+# Background service profiles use config.service.example.yaml instead.
 platform_toolsets:
   cli:
+    - hermes-cli
     - research_ideation
     - skills
   default:
+    - hermes-cli
     - research_ideation
     - skills
 
+agent:
+  disabled_toolsets: []
+
 memory:
-  memory_enabled: false
-  user_profile_enabled: false
+  memory_enabled: true
+  user_profile_enabled: true
 
 auxiliary:
   background_review:

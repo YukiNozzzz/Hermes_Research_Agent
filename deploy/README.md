@@ -2,9 +2,11 @@
 
 使用已有 Hermes，不另建实验 HERMES_HOME。用户 profile 是多用户运行载体，不能当作操作系统沙箱。
 
+0.3.0 面向可信内部团队，只分 user / service：内部用户使用完整原生常用工具，后台 cron 服务受限。同项目内部成员权限相同。完整配置和已有 profile 升级见 [权限说明](../PERMISSIONS.md)。
+
 ## 上传什么
 
-用 Git 推送本仓库源码即可，保留 plugin.yaml、根注册入口、schemas.py、tools.py、research_ideation/、skills/ 和 pyproject.toml。仓库已移除测试和验收脚本，日常操作与部署步骤在保留的四份文档中说明。
+用 Git 推送本仓库源码即可，保留 plugin.yaml、根注册入口、schemas.py、tools.py、research_ideation/、skills/ 和 pyproject.toml。仓库已移除测试和验收脚本，日常操作、权限升级与部署步骤分别见使用说明和部署文档。
 
 缓存、虚拟环境、密钥、本机运行配置和数据库不放进 Git。Windows 的 run.ps1 是本机入口，Linux 直接执行下文 Python / Hermes 命令。
 
@@ -37,14 +39,40 @@ python -m research_ideation.admin --data-root /srv/research-data project-add --i
 python -m research_ideation.admin --data-root /srv/research-data user-add --id alice --profile research-alice
 python -m research_ideation.admin --data-root /srv/research-data user-add --id bob --profile research-bob
 python -m research_ideation.admin --data-root /srv/research-data user-add --id paper-service --profile research-service --service
-python -m research_ideation.admin --data-root /srv/research-data member --project persona-preference --user alice --role owner
-python -m research_ideation.admin --data-root /srv/research-data member --project persona-preference --user bob --role editor
-python -m research_ideation.admin --data-root /srv/research-data member --project persona-preference --user paper-service --role service
+python -m research_ideation.admin --data-root /srv/research-data member --project persona-preference --user alice
+python -m research_ideation.admin --data-root /srv/research-data member --project persona-preference --user bob
+python -m research_ideation.admin --data-root /srv/research-data member --project persona-preference --user paper-service
 ```
 
 管理员命令会调用 Hermes 原生创建和启用机制。依赖准备期间不要修改插件源码；Hermes 会拒绝输入发生变化的发布，可用 --resume 重试本次受控安装。
 请在个人 profile 中配置模型；不从另一个用户 profile 克隆会话、记忆或整个 .env。
 Windows 用 junction，Linux 用目录符号链接，将同一源码接入各 profile。数据目录禁止通过链接越出受控范围。
+
+## 已有服务器升级至 0.3.0
+
+先确保 0.3.0 的源码改动已经提交并推送到服务器使用的远程分支。在服务器仓库目录执行 git pull --ff-only；如提示有未提交改动，先处理自己的改动，不使用强制覆盖。本文的 research_python 仍指服务器真实可用的 Hermes 解释器。
+
+已有部署不重复执行 init、project-add 或 user-add。先备份 data_root/control/registry.sqlite，再预览并应用新策略：
+
+```bash
+"$research_python" -m research_ideation.admin --data-root /srv/research-data permissions-sync --all
+"$research_python" -m research_ideation.admin --data-root /srv/research-data permissions-sync --all --apply
+```
+
+预览阶段不写入。检查结果中的 user 使用 hermes-cli、research_ideation、skills，service 仅使用 research_ideation、skills，再执行 --apply。应用会在各 profile 内备份旧配置，保留模型和其他自定义设置；旧成员角色归并为 user，成员撤销及账号停用保持。已有 cron 不重建，升级命令不重启 gateway、不执行研究任务或模型调用。
+
+升级后检查用户与服务：
+
+```bash
+"$research_python" -m research_ideation.admin --data-root /srv/research-data doctor --profile research-alice
+"$research_python" -m research_ideation.admin --data-root /srv/research-data doctor --profile research-service
+"$research_python" -m research_ideation.admin --data-root /srv/research-data snapshot --profile research-alice --project persona-preference
+hermes -p research-service cron list
+```
+
+doctor 的 configuration_ok 应为 true，kind 应分别为 user 和 service；插件 doctor 也须通过。有 PostgreSQL 绑定时再运行 shared-check --profile research-alice --project persona-preference（同样使用上述 Python、模块和 data-root 前缀），核对共享数据库连接。工具恢复不依赖重新绑定数据库，也不修改数据库账号、GRANT 或 RLS。
+
+最后退出旧的 Hermes 会话并重新进入，或使用 /new；已冻结的工具列表不会在旧会话中扩展。在内部用户的新会话中验证文件 / 终端等常用能力，服务 profile 应保持受限。若使用长期运行的 gateway，按对应 Hermes 版本确认新会话已重新读取配置；不要重复启动第二个 gateway。
 
 ## 实际调度
 
@@ -62,15 +90,15 @@ job 创建后还需要 Hermes gateway / scheduler 实际运行。使用当前安
 
 用户 profile 启动后，明确加载 research-ideation:project-assistant。
 问题探索加载 research-ideation:problem-exploration，由 Hermes 调用真实业务操作完成推理与保存。
-默认研究能力仅 research_ideation、skills，原生长期记忆写回关闭，聊天仍保留在原生 profile。
+内部 user 默认使用 hermes-cli + research_ideation + skills，恢复原生个人记忆，可修改代码、操作文件、使用终端和其他可用工具。service 仅保留 research_ideation、skills，关闭个人记忆和后台审查。新建 user 按 Hermes 默认规则继承技能，新建 service 使用 --no-skills；插件自己注册的两个研究 Skill 独立存在。
 模型需要配置在各 profile；collect-only 的服务 cron 不需要模型凭据。
 开启 auto-explore 时，需把已有任务明确配置为带 Skill 的 Agent 任务，同时配置服务模型；不会偷偷将 collect-only 任务变成付费模型任务。
 
 ## 多用户隔离
 
-- 注册表只由管理员 CLI 修改；普通用户不获得服务器 shell 或任意 profile 选择权限。
+- 注册表通过本机管理 CLI 修改；可信内部 user 可按任务使用终端、文件等工具，不再作为受限聊天用户运行。
 - 未注册 / 禁用 / 不匹配的 profile 无法调用研究操作。每次访问重新检查成员关系。
-- Profile 自身不提供磁盘隔离；研究工具白名单之外的原生终端、代码、任意文件、插件管理等能力必须限制。
+- Profile 自身不提供磁盘隔离。同系统账号下开放完整工具后，内部用户可能读到其他 profile 文件；严格隔离需另行配置 OS / 容器 / 数据库权限。
 - 当前插件对非 CLI 的原生消息入口返回 CHANNEL_NOT_CERTIFIED；已提供账号映射和路由预览，真实微信接入仍待实现。
 - 真正开放聊天软件前要接通经过验证的原生 ingress 元数据，并完成命令门禁、默认 profile、/new、并发与错发验收。
 - 不直接把包含所有 profile 的 HTTP / 桌面管理接口暴露给普通用户。
@@ -85,7 +113,7 @@ HermesCommand 使用官方 HERMES_PYTHON_SRC_ROOT 指向对应源码，不关闭
 
 Windows 验收报告里的 profile 名称、任务 ID、下次调度时间和 E: / C: 路径只描述当时本机状态，不是服务器部署结果。不要将本机 control/runtime.json 或整份 registry.sqlite 直接当作 Linux 配置：前者保存解释器 / 源码路径，后者保存 profile 绝对路径和本机调度 job_id。新服务器重新初始化、登记用户和创建调度；首次空白测试不迁移本机研究数据。需要迁移历史时，另外安排数据库一致性备份、私有目录迁移、身份路径重绑定及来源 / 权限回归，不在本次清理中自动执行。
 
-config.example.yaml 默认给出 Linux /srv/research-data，仅供合并参考；user-add 已为新 profile 写入管理员命令实际使用的数据位置，不能在事后用示例覆盖。
+config.example.yaml 是内部 user 示例，config.service.example.yaml 是后台服务示例，均默认给出 Linux /srv/research-data，仅供合并参考；user-add 已写入管理员命令实际使用的数据位置，不能在事后用示例覆盖。
 
 ## 必要检查
 

@@ -26,6 +26,10 @@ def main():
     store = ContextStore(sessionmaker(engine, expire_on_commit=False))
     project = request["project_id"]
     operation = request["operation"]
+    if request.get("role") not in {"user", "service"}:
+        raise ValueError("ACCESS_DENIED")
+    if operation in {"review", "withdraw"} and request["role"] != "user":
+        raise ValueError("ACCESS_DENIED")
 
     def check_project(row):
         bound = row.fields.get("_ri", {}).get("project_id")
@@ -84,8 +88,6 @@ def main():
             with store.sessions() as session:
                 data = read_version(session, request["record_id"], request.get("version"))
         elif operation == "export":
-            if request["role"] == "reader":
-                raise ValueError("ACCESS_DENIED")
             item = request["record"]
             digest = hashlib.sha256((project + ":" + item["id"]).encode()).hexdigest()[:24]
             date = item["created_at"][:10].replace("-", "")
@@ -161,8 +163,6 @@ def main():
                 if row is None:raise ValueError("NOT_FOUND")
                 check_project(row)
                 metadata=row.fields.get("_ri",{})
-                if request["role"]!="owner" and metadata.get("exported_by")!=request["user_id"]:
-                    raise ValueError("ACCESS_DENIED")
                 if row.version!=request["version"]:raise ValueError("VERSION_CONFLICT")
                 status=request["status"]
                 allowed={"draft":{"confirmed","rejected"},"confirmed":{"superseded"},"rejected":set(),"superseded":set()}
@@ -193,7 +193,7 @@ def main():
                 if row is None:
                     raise ValueError("NOT_FOUND")
                 metadata = row.fields.get("_ri", {})
-                if metadata.get("project_id") != project or (metadata.get("exported_by") != request["user_id"] and request["role"] != "owner"):
+                if metadata.get("project_id") != project:
                     raise ValueError("ACCESS_DENIED")
                 if row.status=="superseded":
                     print(json.dumps({"ok":True,"data":{"id":"cra:"+row.id,"version":row.version,"status":row.status}}))

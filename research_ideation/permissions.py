@@ -16,10 +16,9 @@ def can_read(registry, ctx, record):
 def write_scope(registry, ctx, visibility):
     revalidate(registry, ctx)
     require(visibility in {"private", "project"}, "INVALID_SCOPE", "Use private or project.")
-    require(ctx.role != "reader" or visibility == "private", "ACCESS_DENIED", "Read-only members cannot change shared records.")
     require(ctx.role != "service" or visibility == "project", "ACCESS_DENIED", "Service tasks cannot access personal storage.")
 
 
 def can_edit(registry, ctx, record):
     write_scope(registry, ctx, record["visibility"])
-    require(record["owner_id"] == ctx.user_id or (record["visibility"] == "project" and ctx.role == "owner"), "ACCESS_DENIED", "Only the author or project owner can edit this record.")
+    require(record["owner_id"] == ctx.user_id or (record["visibility"] == "project" and ctx.role == "user"), "ACCESS_DENIED", "Internal users may edit shared project records; private records belong to their author.")

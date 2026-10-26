@@ -74,6 +74,7 @@ class Store(LocalStore):
         return result
 
     def review(self,record_id,version,status,fields=None):
+        require(self.ctx.role == "user", "ACCESS_DENIED", "Review requires an internal user, not a background service.")
         require(type(version) is int and version>=1,"INVALID_INPUT","Review version must be a positive integer.")
         if record_id.startswith(PREFIX):
             write_scope(self.registry,self.ctx,"project")

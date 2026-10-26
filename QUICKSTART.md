@@ -1,5 +1,7 @@
 # MVP 使用说明
 
+0.3.0 使用两种身份：内部 user 开放 Hermes 原生常用工具与研究工具，service 仅执行后台流程。已有 profile 请先按 [权限升级](PERMISSIONS.md) 执行 permissions-sync --all --apply 并开启新会话；不会自动复制其他人的凭据或会话。
+
 当前实现：按 profile 的个人 / 项目记忆、权限检查、arXiv 更新、真实 Hermes 问题探索与结果保存、反馈、明确发布 / 撤回。
 微信只提供绑定和路由规划接口，实际消息入口默认关闭。没有独立 Deep Research。
 
@@ -43,11 +45,15 @@ research-alice / research-bob 是功能验收身份，不是已经绑定的真�
 ## 管理与检查
 
 ```powershell
+.\run.ps1 -Mode admin -Arguments @('permissions-sync','--all')
+.\run.ps1 -Mode admin -Arguments @('permissions-sync','--all','--apply')
 .\run.ps1 -Mode admin -Arguments @('doctor','--profile','research-alice')
 .\run.ps1 -Mode admin -Arguments @('snapshot','--profile','research-bob','--project','persona-preference')
 .\run.ps1 -Mode admin -Arguments @('update','--profile','research-service','--project','persona-preference')
 .\run.ps1 -Mode admin -Arguments @('schedule','--profile','research-service','--project','persona-preference')
 ```
+
+permissions-sync 两行用于从旧权限策略升级：第一行预览，核对后执行第二行。应用时备份原 config.yaml；用户的原生工具和个人记忆恢复，服务继续受限。已有本机 profile 若已升级，再次预览应显示 changed=false。之后开启新会话，不需要重建原有定时任务。Linux 的完整升级顺序见 [部署说明](deploy/README.md#已有服务器升级至-030)。
 
 本机默认 minted hermes.exe 在 Codex 环境报依赖锁缺失时，run.ps1 可显式使用已配置的可用 runtime/source。
 该方式不跳过依赖校验、不改变全局 sticky profile。Hermes 更新导致路径失效时需管理员更新 runtime.json。

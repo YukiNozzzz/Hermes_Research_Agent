@@ -8,7 +8,7 @@ from .config import Config
 from .registry import Registry
 from .models import ResearchError,require
 from .context import resolve_context
-from .profiles import HermesCommand,provision,doctor,schedule
+from .profiles import HermesCommand,provision,doctor,schedule,sync_permissions
 
 
 def command_from(registry):
@@ -27,7 +27,12 @@ def parser():
     for name in ("id","title","brief","query"):project.add_argument("--"+name,required=True)
     project.add_argument("--time",default="10:00");project.add_argument("--timezone",default="Asia/Shanghai")
     user=sub.add_parser("user-add");user.add_argument("--id",required=True);user.add_argument("--profile",required=True);user.add_argument("--service",action="store_true");user.add_argument("--resume",action="store_true")
-    member=sub.add_parser("member");member.add_argument("--project",required=True);member.add_argument("--user",required=True);member.add_argument("--role",choices=["owner","editor","reader","service"],required=True)
+    member=sub.add_parser("member");member.add_argument("--project",required=True);member.add_argument("--user",required=True)
+    member.add_argument("--role",type=lambda value:{"owner":"user","editor":"user","reader":"user"}.get(value,value),choices=["user","service"],help="Defaults to the registered identity; legacy human roles map to user.")
+    sync=sub.add_parser("permissions-sync",help="Preview/apply the two-identity tool policy to registered profiles")
+    targets=sync.add_mutually_exclusive_group(required=True)
+    targets.add_argument("--profile");targets.add_argument("--all",action="store_true")
+    sync.add_argument("--apply",action="store_true",help="Back up config.yaml, apply permissions and normalize legacy memberships")
     revoke=sub.add_parser("revoke");revoke.add_argument("--project",required=True);revoke.add_argument("--user",required=True)
     disable=sub.add_parser("disable");disable.add_argument("--user",required=True)
     binding=sub.add_parser("bind")
@@ -76,6 +81,10 @@ def main(argv=None):
             registry.add_project(args.id,args.title,args.brief,args.query,args.time,args.timezone);data=registry.project(args.id)
         elif args.command=="user-add":data=provision(registry,command_from(registry),source,args.id,args.profile,"service" if args.service else "user",args.resume)
         elif args.command=="member":registry.set_member(args.project,args.user,args.role);data={"updated":True}
+        elif args.command=="permissions-sync":
+            profiles=([u["profile"] for u in registry.inspect()["users"] if u["active"]] if args.all else [args.profile])
+            command=command_from(registry)
+            data={"applied":args.apply,"profiles":[sync_permissions(registry,command,profile,args.apply) for profile in profiles]}
         elif args.command=="revoke":registry.revoke(args.project,args.user);data={"revoked":True}
         elif args.command=="disable":registry.disable(args.user);data={"disabled":True}
         elif args.command=="bind":registry.bind(args.platform,args.account,args.tenant,args.sender,args.user);data={"bound":True}

@@ -1,6 +1,6 @@
 # 与 character-research-agent 的上下文库对齐
 
-版本：0.2.0，2026-10-26。
+版本：0.3.0，2026-10-26。权限模型见 [PERMISSIONS.md](PERMISSIONS.md)：同项目内部用户权限相同，后台服务仅执行受限流程。此版本不修改 PostgreSQL 角色授权。
 
 当前实现是混合存储：CRA PostgreSQL 提供共享、已确认的研究知识；本地 SQLite 保留用户私有记录、研究任务和采集状态。显式发布的结构化研究记录写入同一 PostgreSQL，初始状态为 draft。没有复制另一套同名但字段不兼容的远程 records 表。
 

@@ -49,3 +49,10 @@ class ExecutionContext:
 
 
 RECORD_KINDS = {"note", "experience", "problem", "experiment", "decision", "paper", "idea", "feedback", "update", "online", "diagnosis", "proposal"}
+
+
+def identity_kind(value):
+    """旧成员角色兼容为同权限内部用户；新记录只保存 user / service。"""
+    require(value in {"user", "service", "owner", "editor", "reader"},
+            "INVALID_ROLE", "Use user or service.")
+    return "service" if value == "service" else "user"
