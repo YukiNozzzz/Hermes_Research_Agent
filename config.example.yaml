@@ -1,6 +1,7 @@
 # Merge into the selected personal Hermes profile. Use the server's absolute data_root.
 # Linux example below; Windows local example: E:/harness/research-data.
 # Normally the setup command writes these settings automatically.
+# Merge only when needed; do not overwrite a configured config.yaml with this example.
 # CRA shared context is configured separately by shared-bind; see ALIGNMENT.md.
 # Never put database credentials in model-facing plugin settings.
 plugins:

@@ -1,4 +1,4 @@
-"""Bounded, scoped file operations. OS-level isolation is still a deployment requirement."""
+"""Scoped data paths under the running account's permissions; not an OS sandbox."""
 
 import json
 import os

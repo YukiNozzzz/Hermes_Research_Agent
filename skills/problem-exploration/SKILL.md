@@ -13,7 +13,7 @@ description: Explore a specific research difficulty using accessible project his
 6. Keep at most three candidates, or none. Each must contain exactly title, hypothesis, method, related_work, experiment, risks, refs. Experiments specify a baseline, data, metric and failure criterion. Each reference needs the actual id/version read in this task; optional quote must be verbatim.
 7. Call `research_finish` with candidates, review, check_scope and open_questions. State missing sources and abstract-only coverage. If evidence is insufficient, save zero candidates with the reasons instead of inventing citations.
 8. Finish returns persistent idea IDs and saved report metadata. Report actual success/error to the user. Retrying finish is safe. Only an explicit sharing request authorizes later publication of personal output.
-9. For service cron runs, first call `research_update_papers`. Only when its auto_explore flag is true AND new_count > 0, select a relevant shared problem from `research_project` and run the same workflow. Do not use a user's private history or start unlimited follow-up tasks. If there is no shared problem, just report the update and stop.
+9. For explicitly configured scheduled ideation runs, first call `research_update_papers`. Only when its auto_explore flag is true AND new_count > 0, select one relevant shared problem from `research_project` and run the same workflow. The selected single user or an existing collector may execute the schedule; do not assume a separate service is required. Keep scheduled output based on shared inputs, do not start unlimited follow-up tasks, and stop after the update if there is no shared problem. The default no-agent collection schedule does not load this workflow.
 
 ## 已确认知识与候选草稿
 

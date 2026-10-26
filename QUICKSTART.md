@@ -2,6 +2,8 @@
 
 0.4.0 优先完成一个人的研究闭环。你可以直接使用 Hermes 默认 Home，也可以选择已有个人 profile。后台论文采集默认由同一个 profile 执行；升级旧部署时可以继续复用已有 service。
 
+本文是 Windows 本机入口，不要求先操作 deploy/ 或搭建 Docker。需要离开本机持续运行时，再按 Linux 部署说明迁移；本机任务的调度也需要实际 scheduler 持续运行。
+
 ## 本机从已有版本升级
 
 在 E:\harness\research-ideation 运行：
@@ -56,12 +58,15 @@ setup 将采集所用 profile 的时区与项目一致，默认 Asia/Shanghai；
 .\run.ps1 -Mode admin -Arguments @('snapshot')
 .\run.ps1 -Mode admin -Arguments @('update')
 .\run.ps1 -Mode admin -Arguments @('schedule')
+.\run.ps1 -Mode admin -Arguments @('current','--collector')
 .\run.ps1 -Mode admin -Arguments @('shared-check')
 ```
 
 update 真实访问 arXiv，同一项目、日期和检索词去重；失败不会伪装成没有新论文。schedule 默认创建不调用模型的采集脚本，时间来自项目设置。
 
 schedule 不会自动启动 gateway，也不会证明每天 10:00 已经运行。使用实际 Hermes 安装的 cron list / gateway 管理方式检查。若旧任务不属于当前选择，命令会提示冲突，不偷偷再建一份。
+
+current --collector 显示实际采集身份及 Home；不要只在聊天 profile 下查旧 service 的任务。Linux 的具体 cron/status、网关启动及验收步骤见 [部署说明](deploy/README.md)。
 
 ## 导入和审核
 

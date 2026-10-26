@@ -8,8 +8,8 @@
 
 | 内容 | 保存在哪里 |
 | --- | --- |
-| 用户 / profile / 成员 / 渠道绑定 | 原管理员 control/registry.sqlite |
-| 私人记忆、未分享的 idea、任务快照、反馈 | 对应 profile 的 plugin-data/research-ideation |
+| 当前用户、默认项目、可选旧采集身份，以及历史 profile / 成员 / 渠道绑定 | control/registry.sqlite |
+| 私人研究记录、未分享的 idea、任务快照、反馈 | 对应 profile 的 plugin-data/research-ideation |
 | 项目原始论文、问题、更新批次、任务 | 原 data_root/projects/<project_id> SQLite |
 | 共享研究知识、已发布方案草稿 | CRA PostgreSQL 的既有六张表 |
 | Markdown / JSON 报告 | 原来按 profile / 项目和任务划分的 reports 目录 |
@@ -30,7 +30,7 @@
 
 CRA 公共表目前没有项目和私有权限列，因此管理员只能把这套明确共享的公共库绑定到一个本地项目。所有原有无项目标签的 CRA 记录视为该项目共同资料；由本插件写入的记录另带不可由模型修改的 _ri.project_id 元数据。其他项目不能复用该绑定。每次调用前后重新验证原生 profile 与成员关系；这不等于远程 PostgreSQL 已有多租户隔离。
 
-本机已绑定 persona-preference。Linux 部署需要重新配置三个路径：CRA 仓库、该仓库的可用 Python、该机器上的 .env；无需复制 Windows Python 环境。示例：
+本机曾为 persona-preference 配置共享库绑定，但实际可用状态应以当前 shared-check 为准。Linux 部署需要重新配置三个路径：CRA 仓库、该仓库的可用 Python、该机器上的 .env；无需复制 Windows Python 环境。先完成单用户 setup，再执行示例：
 
 ```bash
 python -m research_ideation.admin --data-root /srv/research-data shared-bind \
@@ -76,6 +76,17 @@ python -m research_ideation.admin --data-root /srv/research-data shared-check \
 
 import-json 支持 JSON / JSONL、每批最多 100 条 / 10 MB，按一个可见范围原子写入草稿；已有编号不覆盖。默认 private，--shared 才写本地项目区。支持 sources 的 ref 或 uri、结构化 fields 或 CRA 风格顶层字段；引用必须先存在，并使用 research_read 实际返回的编号 / 版本，暂不支持同批次前向引用。
 
+单条普通笔记的输入形状如下；把示例文字替换为真实资料，再保存为 UTF-8 JSON 文件，不把它当成实际研究结论：
+
+```json
+{
+  "kind": "note",
+  "title": "替换为资料标题",
+  "body": "替换为原始观察或资料正文",
+  "sources": [{"kind": "note", "uri": "urn:local:notes:replace-me"}]
+}
+```
+
 需要补人工字段时，给 review 增加 --fields-json，文件只放待补字段，例如：
 
 ```json
@@ -86,7 +97,7 @@ import-json 支持 JSON / JSONL、每批最多 100 条 / 10 MB，按一个可见
 
 ## 升级与备份
 
-首次读取旧 SQLite 会升级至 user_version=2，旧记录默认 draft，原有内容 / 版本保留，不自动审核。正式升级前应使用 SQLite backup 做一致性备份。本机已经在各已有数据文件旁保存 .pre-alignment.bak，备份和原数据具有相同的私有 / 项目归属，不进入 Git。
+首次读取旧研究记录 SQLite 会升级至 user_version=2，旧记录默认 draft，原有内容 / 版本保留，不自动审核。正式升级前应使用 SQLite backup 做一致性备份。setup 自动备份的是控制登记库与发生变更的 profile 配置，不等于备份了全部私人库、项目库和 PostgreSQL；历史 .pre-alignment.bak 也不能当作本次最新备份。
 
 数据库持久化与备份需要单独配置，防止服务重建后丢失数据。共享库表结构由 CRA 的迁移维护；禁止在共享业务库执行会删表的降级测试。
 

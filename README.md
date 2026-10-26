@@ -8,6 +8,8 @@ Hermes 插件，版本 0.4.0。当前面向一个研究者：整理项目背景�
 - [存储与审核](ALIGNMENT.md)：本地资料与 CRA PostgreSQL 的读写、发布及人工审核。
 - [未来多用户隔离方案](MULTI_USER_ISOLATION_PLAN.md)：Docker / 自定义沙箱调研；当前阶段暂缓实施。
 
+先在本机验证研究流程时，按快速使用运行即可；只有需要服务器常驻、电脑关机后仍采集时，才进行 Linux 部署。deploy/ 目前只保存操作说明，不是插件运行依赖，也不包含自动部署脚本。
+
 ## 单用户入口
 
 首次从已有版本升级，在 PowerShell 中选择你实际使用的个人 profile：
@@ -69,6 +71,7 @@ update 会真实访问 arXiv；schedule 创建每日任务，但不会自动启�
 - research_ideation/workflows/daily_update.py：本人或已选旧 service 的采集与每日去重。
 - research_ideation/store/、tasks.py、sharing.py：存储、研究任务、反馈、发布与审核。
 - skills/：项目助手与问题探索流程。
+- deploy/：Linux 首次部署、升级、网关与定时任务检查说明；不参与工具注册和业务执行。
 
 ## 当前边界
 
@@ -78,10 +81,14 @@ update 会真实访问 arXiv；schedule 创建每日任务，但不会自动启�
 
 ## 更新记录
 
+### 2026-10-27
+
+- 完善单用户运维说明：区分本机测试与服务器部署，补充 current --collector、原生 cron/gateway 检查、数据库就绪及定时验收；同步 CLI 帮助、Skills 和存储说明中的旧表述。
+
 ### 2026-10-26
 
 - 0.4.0：增加单用户 setup/current；允许复用默认 Home；聊天及常用管理命令自动选用户和项目。本人可以抓取和调度论文，不必创建 service；兼容保留旧采集身份和 cron。
 - 升级保存原用户编号和私人数据，其他历史 profile 不删除或合并；当前插件只接受选定身份。同步工具说明、Skills 和 Windows / Linux 文档。
 - 0.3.0：统一 user/service 权限及原生工具配置；0.2.0 接入 CRA PostgreSQL。
 
-**拉代码后：** 已有部署先按 [部署说明](deploy/README.md) 运行一次 setup，选择已有个人 profile，再开启新会话；不能仅执行 permissions-sync。线上数据库业务表及实际定时运行需分别验收。
+**拉代码后：** 已完成 0.4.0 配置的部署无需额外数据库迁移，开启新会话读取更新的 Skill 即可。从更旧版本升级时，按 [部署说明](deploy/README.md) 运行一次 setup，选择已有个人 profile；不能仅执行 permissions-sync。线上数据库业务表及实际定时运行需分别验收。
