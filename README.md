@@ -1,94 +1,125 @@
-# 项目研究助手：research-ideation
+# Research Ideation
 
-Hermes 插件，版本 0.4.0。当前面向一个研究者：整理项目背景和历史、每日拉取 arXiv 论文、针对难点提出可验证的 idea，并保存实验反馈。
+Hermes 的六类资料构思插件：PostgreSQL 提供共享资料，当前会话模型负责想 idea，默认直接在对话中输出。用户要求时再用 Hermes 文件工具整理成本地文档。
 
-- [快速使用](QUICKSTART.md)：选择自己的 profile、启动聊天和常用命令。
-- [Linux 部署](deploy/README.md)：首次安装、已有版本升级和实际调度。
-- [单用户设置与权限](PERMISSIONS.md)：历史用户保留、默认 profile 和工具能力。
-- [存储与审核](ALIGNMENT.md)：本地资料与 CRA PostgreSQL 的读写、发布及人工审核。
-- [未来多用户隔离方案](MULTI_USER_ISOLATION_PLAN.md)：Docker / 自定义沙箱调研；当前阶段暂缓实施。
+## 入口与运行流程
 
-先在本机验证研究流程时，按快速使用运行即可；只有需要服务器常驻、电脑关机后仍采集时，才进行 Linux 部署。deploy/ 目前只保存操作说明，不是插件运行依赖，也不包含自动部署脚本。
+只有 **1 个工具 `research_start(question, constraints)` 和 1 个 Skill `problem-exploration`**。
 
-## 单用户入口
-
-首次从已有版本升级，在 PowerShell 中选择你实际使用的个人 profile：
-
-```powershell
-cd E:\harness\research-ideation
-.\run.ps1 -Mode admin -Arguments @('setup','--profile','research-me','--project','persona-preference')
-.\run.ps1
+```text
+业务问题与约束 → PostgreSQL 六类完整资料 → Hermes 比较、质疑、修订
+                                              ↓
+                                        在对话中输出 idea
+                                              ↓ 用户要求保存
+                                        用户本地持久化目录
 ```
 
-research-me 是本机已有个人 profile 的示例；服务器使用自己的实际名称。也支持 --profile default，直接使用 Hermes 原有默认 Home。新安装没有必要创建 Alice、Bob 或独立的 service 用户。
+research_start 只读资料，不创建任务、不调用模型、不写数据库，也不自动生成报告。没有 research_finish。引用和输出质量由模型按 Skill 检查，不再提供旧版固定任务快照及提交校验。
 
-setup 记录当前使用者和默认项目，自动建立成员关系并配置研究插件，保留模型设置。已有用户会保留原 user_id，避免私人记录失去归属。其他历史用户和目录不删除、不合并，但不能再通过本插件作为并行研究用户使用。
-
-选择后，日常命令可以省略 profile 和 project：
+在本机启动新的 Hermes 会话：
 
 ```powershell
-.\run.ps1 -Mode admin -Arguments @('current')
-.\run.ps1 -Mode admin -Arguments @('doctor')
-.\run.ps1 -Mode admin -Arguments @('snapshot')
-.\run.ps1 -Mode admin -Arguments @('update')
-.\run.ps1 -Mode admin -Arguments @('schedule')
+$env:HERMES_HOME = (Get-Content E:/harness/research-data/control/runtime.json -Raw | ConvertFrom-Json).hermes_root
+hermes -p default chat
 ```
 
-update 会真实访问 arXiv；schedule 创建每日任务，但不会自动启动 gateway。新安装由个人 profile 执行采集；旧项目唯一的 service 采集身份会自动保留，以免原 cron 失效或重复创建。
+输入示例：
 
-## 研究闭环
+> 加载 research-ideation:problem-exploration。根据六类资料，研究如何改善强人设用户的偏好冲突。比较不同机制，提出一个值得先验证的 idea，直接在对话中说明依据、未知项和最小实验。先离线验证，暂缓扩训。
 
-启动新会话后输入：
+需要文件时再说“把这个 idea 整理成 Markdown，保存到我的工作目录”。文件读写工具由 Hermes 提供，插件不新增导出或报告工具。
 
-> 加载 research-ideation:project-assistant，看看我的项目目标、已做工作和未解决问题。
+## 数据边界
 
-> 针对角色设定与用户偏好冲突的问题，加载 research-ideation:problem-exploration，结合已有资料提出验证方案并保存。
-
-> 我试过刚才的方案，结果是……。请把反馈关联到对应 idea。
-
-默认研究方向为“人设对话领域如何对齐用户偏好”，现有项目 ID 为 persona-preference，采集时间为每天 10:00、Asia/Shanghai。工具省略 project_id 时使用 setup 选定的项目，不再要求每次指定身份。
-
-私人记录和项目研究资料仍明确区分：日常记录默认私人，明确发布后才进入项目范围。即使现在只有一个人，也不会自动把私人笔记传到共同资料库；人工审核规则继续保留。
-
-## 数据保存
-
-| 内容 | 位置 |
+| 数据 | 保存位置 |
 | --- | --- |
-| 个人记录、研究任务、反馈和报告 | 当前 Hermes Home 的 plugin-data/research-ideation |
-| 原始论文、项目问题、采集状态 | data_root/projects/<project_id> |
-| 已确认共享知识、显式发布的结构化方案 | CRA PostgreSQL |
-| 当前用户、默认项目、历史身份和可选旧采集身份 | data_root/control/registry.sqlite |
-| 本机解释器与共享库路径 | data_root/control/ 下的配置文件 |
+| experience、decision、experiment、online、diagnosis、proposal | 现有 CRA PostgreSQL public.records |
+| 资料出处、引用和历史版本 | CRA 现有 sources、record_sources、record_links、record_revisions |
+| 聊天历史、个人记忆和配置 | Hermes 当前用户本地持久化目录 |
+| 新 idea | 默认只出现在对话里；用户要求时保存本地文档 |
+| 用户身份 | 本地部署配置保留稳定 user_id，不上传用户信息表 |
 
-业务数据、模型密钥、数据库连接和虚拟环境不进 Git。当前存储仍是本地 SQLite / 文件加线上 PostgreSQL，不要求把 Hermes 会话与记忆全部迁入数据库。
+插件以一次 REPEATABLE READ、READ ONLY 事务批量读取完整正文、来源和引用，不进行检索、排序选优、摘要或条数截断。返回真实原生 ID、version、status、sources 和 links；proposal 保留为 proposal，不转成 idea。输出过大时模型必须说明无法完整审阅，不能悄悄筛选或声称读完。
 
-## 代码位置
+所有审核状态均返回。draft 可用于形成明确标注未经确认的假设；confirmed 表示人工确认资料，不代表证明因果；rejected/superseded 用于历史对照与反证。缺项保持为空，不虚构收益或结论。
 
-- research_ideation/runtime/hermes/single_user.py：单用户 setup、默认 Home 接入、登记库一致性备份和旧采集身份复用。
-- research_ideation/store/registry.py：当前使用者、默认项目与历史身份；运行请求只接受选定身份。
-- run.ps1：自动读取当前选择，使用登记的真实 Home 启动。
-- research_ideation/admin.py：管理命令，默认选择当前用户与项目。
-- research_ideation/workflows/daily_update.py：本人或已选旧 service 的采集与每日去重。
-- research_ideation/store/、tasks.py、sharing.py：存储、研究任务、反馈、发布与审核。
-- skills/：项目助手与问题探索流程。
-- deploy/：Linux 首次部署、升级、网关与定时任务检查说明；不参与工具注册和业务执行。
+资料范围来自本地 project_id 配置，模型不能传用户、项目、SQL 或路径改变范围。有项目标记的资料仅匹配当前项目；`_ri.visibility=private` 不作为共享资料返回。无项目标记的旧资料默认不读，只有管理员显式配置 include_unscoped=true 才授权读取。
 
-## 当前边界
+**当前部署授权的旧共享资料没有项目标记，因此启用了 include_unscoped；这不是多个项目之间的完整权限系统。** 0.8.0 切换时 public.records 有 329 条 decision 和 347 条 experiment，均为 draft，其余四类为空。数量和状态会随人工资料管理变化。插件不自动审核资料。
 
-当前按单用户可信本机运行，文件、终端等 Hermes 原生工具保持可用。没有 Docker、自定义执行沙箱、自动休眠或多用户社交入口；profile 不是系统文件权限边界。
+## 配置和检查
 
-社交平台接入仍未实现，非 CLI 入口继续返回 CHANNEL_NOT_CERTIFIED。后续先接本人白名单，再另行考虑多用户。
+本地连接配置位于 data_root/control/database.json；凭据由指定环境文件中的 CRA_DATABASE_URL 提供，不打印到工具结果。复用现有 CRA Python 的 SQLAlchemy/psycopg 环境，本轮未重做数据库驱动或 Docker 部署。
 
-## 更新记录
+从项目目录执行，Python 3.11+：
 
-### 2026-10-27
+```powershell
+uv run --no-project python -B -m research_ideation.admin current
+uv run --no-project python -B -m research_ideation.admin database-check
+```
 
-- 完善单用户运维说明：区分本机测试与服务器部署，补充 current --collector、原生 cron/gateway 检查、数据库就绪及定时验收；同步 CLI 帮助、Skills 和存储说明中的旧表述。
+新环境绑定示例，替换实际路径和稳定用户编号：
 
-### 2026-10-26
+```powershell
+uv run --no-project python -B -m research_ideation.admin database-bind --python E:/character-research-agent/.venv/Scripts/python.exe --repository E:/character-research-agent --env-file E:/实际凭据文件 --project persona-preference --user-id 实际用户编号 --title 人设偏好研究 --include-unscoped
+```
 
-- 0.4.0：增加单用户 setup/current；允许复用默认 Home；聊天及常用管理命令自动选用户和项目。本人可以抓取和调度论文，不必创建 service；兼容保留旧采集身份和 cron。
-- 升级保存原用户编号和私人数据，其他历史 profile 不删除或合并；当前插件只接受选定身份。同步工具说明、Skills 和 Windows / Linux 文档。
-- 0.3.0：统一 user/service 权限及原生工具配置；0.2.0 接入 CRA PostgreSQL。
+只有确定这批无项目标记的旧资料应作为此部署的共享输入时，才加 --include-unscoped。绑定只检查现有业务表，写入本地连接配置，不建表。插件启动注册不连接数据库。
 
-**拉代码后：** 已完成 0.4.0 配置的部署无需额外数据库迁移，开启新会话读取更新的 Skill 即可。从更旧版本升级时，按 [部署说明](deploy/README.md) 运行一次 setup，选择已有个人 profile；不能仅执行 permissions-sync。线上数据库业务表及实际定时运行需分别验收。
+绑定到 Hermes Home 的 plugins/research-ideation，配置保留现有其他项：
+
+```yaml
+plugins:
+  entries:
+    research-ideation:
+      settings:
+        data_root: E:/research-data
+platform_toolsets:
+  cli:
+    - hermes-cli
+    - research_ideation
+    - skills
+```
+
+本轮仍使用部署启动的 CLI；未实现消息平台的身份接入。更新后检查并开启新会话：
+
+```powershell
+hermes -p default plugins doctor research-ideation --ci
+```
+
+预期注册 1 个工具。数据库不可用时明确报错，不把失败解释为空资料或回退本地库。
+
+## 人工资料管理
+
+插件不再重复实现导入、审核或资料表。使用 CRA 已有的人工 CLI，环境文件及连接需先正确配置：
+
+```powershell
+# 在 CRA 项目及其 Python 环境中执行
+python -m cra.cli schema proposal
+python -m cra.cli import E:/实际资料.json --actor 实际录入人
+python -m cra.cli inspect 实际记录编号
+python -m cra.cli confirm 实际记录编号 --actor 实际确认人 --version 实际版本号
+```
+
+导入六类资料后仍为草稿，由人确认。不要把这些管理入口注册为模型可调用的上传/审核工具。新生成的 idea 不会自动成为 proposal。
+
+## Docker 与后续扩展
+
+每用户独立容器、独立 Hermes Home 和持久化卷，聊天历史与本地文件由 Hermes 管理。不要只把长期数据放在容器临时可写层，也不要把各用户 Home 挂成同一个目录。user_id 是部署元数据，尚未作为数据库登录认证。
+
+读取事务防止插件误写，不等于数据库账号隔离。部署时应配置只读数据库权限。当前共用的资料集是组内共享输入；未来私人资料或多项目隔离还需要相应访问控制。后续可新增用户表并沿用稳定 user_id；本轮不提前建设用户平台。
+
+## 代码与历史数据
+
+| 文件 | 职责 |
+| --- | --- |
+| __init__.py、schemas.py、tools.py | 单工具和 Skill 注册、参数校验 |
+| research_ideation/hermes.py、context.py | 本地 Hermes 运行范围和配置 |
+| database.py、pg_worker.py | PostgreSQL 只读调用、范围筛选及批量读取 |
+| ideation.py、records.py、models.py | 六类上下文、审核状态与公共校验 |
+| admin.py | 本地连接配置和只读检查 |
+| skills/problem-exploration/SKILL.md | 模型运行时构思及按需本地保存指令 |
+
+0.8.0 移除任务、用户登记、idea 入库及报告保存逻辑，删除 tasks.py、registry.py、storage.py。旧 research_ideation schema 及 registry、records、record_versions、tasks、migration_archives 五张表已按用户要求删除，其中包含 20 条旧记录、22 个历史版本、7 个任务和 64 条迁移归档。public 下现有业务表保持不变；没有将旧记录自动转换或复制到六类资料中。仓库外本地历史封存副本未在此次删表操作中清理。
+
+仓库只保留 README 和必要运行源码/Skill，不重新加入测试、示例、迁移文档或 run.ps1。迁移和验证脚本位于仓库外。本轮不修改现有可视化网页；新插件复用其已展示的 public 资料表。

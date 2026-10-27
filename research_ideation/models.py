@@ -1,9 +1,6 @@
-"""Shared contracts. Never treat model-provided ids as authenticated identities."""
+"""Small shared validation contracts."""
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import re
-import uuid
 
 
 class ResearchError(Exception):
@@ -23,36 +20,7 @@ def identifier(value):
     return value
 
 
-def bounded_text(value, name="text", limit=100000, empty=False):
+def bounded_text(value, name, limit, empty=False):
     require(isinstance(value, str) and (empty or value.strip()) and len(value) <= limit,
-            "INVALID_INPUT", f"{name} must be text, nonempty unless optional, at most {limit} characters.")
+            "INVALID_INPUT", f"{name} must be text of at most {limit} characters.")
     return value.strip()
-
-
-def now():
-    return datetime.now(timezone.utc).isoformat()
-
-
-def new_id(prefix):
-    return prefix + "_" + uuid.uuid4().hex
-
-
-@dataclass(frozen=True)
-class ExecutionContext:
-    user_id: str
-    profile: str
-    profile_home: str
-    project_id: str
-    role: str
-    session_id: str = ""
-    platform: str = "cli"
-
-
-RECORD_KINDS = {"note", "experience", "problem", "experiment", "decision", "paper", "idea", "feedback", "update", "online", "diagnosis", "proposal"}
-
-
-def identity_kind(value):
-    """旧成员角色兼容为同权限内部用户；新记录只保存 user / service。"""
-    require(value in {"user", "service", "owner", "editor", "reader"},
-            "INVALID_ROLE", "Use user or service.")
-    return "service" if value == "service" else "user"

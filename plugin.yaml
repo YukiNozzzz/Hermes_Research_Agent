@@ -1,13 +1,5 @@
 name: research-ideation
-version: 0.4.0
-description: "Single-user project memory, arXiv updates, and evidence-grounded ideation."
+version: 0.8.0
+description: "Read six-type PostgreSQL inputs; discuss ideas or save documents locally."
 provides_tools:
-  - research_project
-  - research_record
-  - research_search
-  - research_read
   - research_start
-  - research_finish
-  - research_publish
-  - research_feedback
-  - research_update_papers
